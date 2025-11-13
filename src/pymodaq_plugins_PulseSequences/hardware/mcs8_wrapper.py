@@ -6,21 +6,21 @@ Inspired from the Qudi interface code."""
 import ctypes
 import time
 import numpy as np
-from pymodaq_plugins_fastcomtec.hardware.structures import (
+from .structures import (
     AcqStatus,
     AcqSettings,
     BOARDSETTING,
 )
 
 
-class MSC8:
+class MCS8:
     def __init__(
         self,
         device: int = 0,
         dll_path: str = "C:\Windows\System32\DMCS8.dll",
-        min_binwidth: float = 0.2e-9,
-        max_sweep_length=6.8,
-        trigger_safety: float = 400e-9,
+        min_binwidth: float = 200e-12,
+        max_sweep_length=6.8,  # it can go up to 8.3 days
+        trigger_safety: float = 0,
     ):
         self._ndev = device
         self._dll_path = dll_path
@@ -34,6 +34,24 @@ class MSC8:
     def trigger_safety(self):
         return self._trigger_safety
 
+    def run_cmd(self, command: str) -> str:
+        """Send a command string to the device and return the modified string."""
+        # Create a mutable buffer with extra space for the result
+        buffer_size = len(command) + 1024  # Command + space for sprintf result
+        command_buffer = ctypes.create_string_buffer(
+            command.encode("utf-8"), buffer_size
+        )
+
+        # Configure the DLL function signature
+        self.dll.RunCmd.argtypes = [ctypes.c_int, ctypes.c_char_p]
+        self.dll.RunCmd.restype = None
+
+        # Call the function - it will modify command_buffer in-place
+        self.dll.RunCmd(self._ndev, command_buffer)
+
+        # Return the modified string
+        return command_buffer.value.decode("utf-8")
+
     def get_status(self):
         """
         Receives the current status of the Fast Counter and outputs it as return value.
@@ -45,16 +63,16 @@ class MSC8:
         """
         status = AcqStatus()
         self.dll.GetStatusData(ctypes.byref(status), self._ndev)
-        # status.started = 3 means that fct is about to stop
+        # status.started = 3 means that fastcomtec is about to stop
         while status.started == 3:
             time.sleep(0.1)
             self.dll.GetStatusData(ctypes.byref(status), self._ndev)
         if status.started == 1:
             return 2
         elif status.started == 0:
-            if self.stopped_or_halt == "stopped":
+            if self._stopped_or_halt == "stopped":
                 return 1
-            elif self.stopped_or_halt == "halt":
+            elif self._stopped_or_halt == "halt":
                 return 3
             else:
                 print(
@@ -78,7 +96,7 @@ class MSC8:
 
     def stop_measure(self):
         """Stop the measurement."""
-        self.stopped_or_halt = "stopped"
+        self._stopped_or_halt = "stopped"
         status = self.dll.Halt(self._ndev)
         while self.get_status() != 1:
             time.sleep(0.05)
@@ -86,7 +104,7 @@ class MSC8:
 
     def pause_measure(self):
         """Make a pause in the measurement, which can be continued."""
-        self.stopped_or_halt = "halt"
+        self._stopped_or_halt = "halt"
         status = self.dll.Halt(self._ndev)
         while self.get_status() != 3:
             time.sleep(0.05)
@@ -104,7 +122,7 @@ class MSC8:
         The read out bitshift will be converted to binwidth. The binwidth is
         defined as 2**bitshift*minimal_binwidth.
         """
-        return self._min_binwidth * (2 ** int(self.get_bitshift()))
+        return self._min_binwidth * (2 ** int(self._get_bitshift()))
 
     def set_binwidth(self, binwidth):
         """Set the binwidth of the FastComTec. Returns the actual updated binwidth.
@@ -117,9 +135,9 @@ class MSC8:
     def get_length(self):
         """Return the length of the current measurement in number of bins (int)."""
         setting = AcqSettings()
-        self.dll.GetSettingData(ctypes.byref(setting), 0)
-        length = int(setting.ranges)
-        return length
+        self.dll.GetSettingData(ctypes.byref(setting), self._ndev)
+        length = int(setting.range)
+        return length * self.get_binwidth()
 
     def set_length(self, length):
         """
@@ -132,25 +150,16 @@ class MSC8:
         Updated measurement length (float)
         """
         if length < self._max_sweep_length:
-            # Convert the length in number of bins
-            # NOTE: maybe it should be given in number of bins directly
-            if length % self.get_binwidth() != 0:
-                raise ValueError(
-                    f"Measurement length should be a multiple of the binwidth. Current binwidth: {self.get_binwidth()}"
-                )
-            else:
-                length_bins = length // self.get_binwidth()
-                # Smallest increment is 64 bins. Since it is better if the range is too short than too long, round down
-                length_bins = int(64 * int(length_bins / 64))
-                cmd = "RANGE={0}".format(int(length_bins))
-                self.dll.RunCmd(0, bytes(cmd, "ascii"))
-                # insert sleep time, otherwise fast counter crashed sometimes!
-                time.sleep(0.5)
-                return length_bins
+            N_bins = int((length - self._trigger_safety) / self.get_binwidth())
+            # Smallest increment is 64 bins. Since it is better if the range is too short than too long, round down
+            N_bins = int(64 * int(N_bins / 64))
+            cmd = f"range={int(N_bins)}"
+            self.run_cmd(cmd)
+            # insert sleep time, otherwise fast counter crashed sometimes!
+            time.sleep(0.5)
+            return N_bins * self.get_binwidth()
         else:
-            raise ValueError(
-                "Dimensions {0} are too large for fast counter1!".format(length)
-            )
+            raise ValueError(f"Dimensions {length} are too large for fast counter1!")
 
     def get_data(self):
         """
@@ -176,18 +185,6 @@ class MSC8:
         timestamps = self.get_binwidth() * np.arange(1, N + 1)
         return timestamps
 
-    def _get_bitshift(self):
-        """Get the bitshift from the FastComTec (used to define the binwidth)."""
-        settings = AcqSettings()
-        self.dll.GetSettingData(ctypes.byref(settings), self._ndev)
-        return int(settings.bitshift)
-
-    def _set_bitshift(self, bitshift):
-        """Set the bitshift of the FastComTec. Returns the actual updated bitshift."""
-        cmd = "BITSHIFT={0}".format(bitshift)
-        self.dll.RunCmd(self._ndev, bytes(cmd, "ascii"))
-        return self.get_bitshift()
-
     def get_start_delay(self):
         """Return the starting delay which is the waiting time after the trigger before the FastComTec starts counting."""
         bsetting = BOARDSETTING()
@@ -208,6 +205,28 @@ class MSC8:
         """
         # A delay can only be adjusted in steps of 6.4ns
         delay = np.rint(delay_s / 6.4e-9)
-        cmd = "fstchan={0}".format(int(delay))
-        self.dll.RunCmd(self._ndev, bytes(cmd, "ascii"))
+        cmd = f"fstchan={int(delay)}"
+        self.run_cmd(cmd)
         return self.get_start_delay
+
+    def get_boardsettings(self):
+        bsetting = BOARDSETTING()
+        self.dll.GetMCSSetting(ctypes.byref(bsetting), self._ndev)
+        return bsetting
+
+    def get_acquisition_settings(self):
+        settings = AcqSettings()
+        self.dll.GetSettingData(ctypes.byref(settings), self._ndev)
+        return settings
+
+    def _get_bitshift(self):
+        """Get the bitshift from the FastComTec (used to define the binwidth)."""
+        settings = AcqSettings()
+        self.dll.GetSettingData(ctypes.byref(settings), self._ndev)
+        return int(settings.bitshift)
+
+    def _set_bitshift(self, bitshift):
+        """Set the bitshift of the FastComTec. Returns the actual updated bitshift."""
+        cmd = f"bitshift={bitshift}"
+        self.run_cmd(cmd)
+        return self._get_bitshift()

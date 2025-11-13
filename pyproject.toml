@@ -6,23 +6,21 @@ h5exporters = false  # true if plugin contains custom h5 file exporters
 scanners = false  # true if plugin contains custom scan layout (daq_scan extensions)
 
 [urls]
-package-url = 'https://github.com/PyMoDAQ/pymodaq_plugins_template' #todo modify url by your plugin url
+package-url = 'https://github.com/Montpellier-S2QT/pymodaq_plugins_fastcomtec' #todo modify url by your plugin url
 
 [project]
-name = "pymodaq_plugins_template" #todo modify template by your plugin short name
-description = 'some word about your plugin'
+name = "pymodaq_plugins_PulseSequences"
+description = 'Plugin with custom 1D viewer for performing pulse measurements'
 dependencies = [
     "pymodaq>=5.0.0",
-    #todo: list here all dependencies your package may have
 ]
 
 authors = [
-    {name = "Name Surname", email = "myname@test.fr"},
-    #todo: list here all authors of your plugin
+    {name = "Lucas Moreau--Lalaux", email = "lucas.moreau-lalaux@ens-lyon.fr"},
+    {name = "Jessica Tournaud", email = "jessica.tournaud@umontpellier.fr"},
 ]
 maintainers = [
-    {name = "Name Surname", email = "myname@test.fr"},
-    #todo: list here all maintainers of your plugin
+    {name = "Jessica Tournaud", email = "jessica.tournaud@umontpellier.fr"},
 ]
 
 # nottodo: leave everything below as is!
@@ -63,5 +61,5 @@ source = "vcs"
 
 # probably not the right place to put it
 [tool.hatch.build.targets.wheel]
-packages = ["src/pymodaq_plugins_template"]
+packages = ["src/pymodaq_plugins_PulseSequences"]
 

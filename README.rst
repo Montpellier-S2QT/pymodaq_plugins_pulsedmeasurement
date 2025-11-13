@@ -19,26 +19,23 @@ pymodaq_plugins_template
     :target: https://github.com/PyMoDAQ/pymodaq_plugins_template/actions/workflows/Test.yml
 
 
-Use this template to create a repository on your account and start the development of your own PyMoDAQ plugin!
+This plugin controls a spincore PulseBlaster and a fastcomtec fast counter to perform pulsed measurements.
 
 
 Authors
 =======
 
-* First Author  (myemail@xxx.org)
-* Other author (myotheremail@xxx.org)
+* Lucas Moreau--Lalaux  (lucas.moreau-lalaux@ens-lyon.fr)
+* Jessica Tournaud (jessica.tournaud@umontpellier.fr)
 
 .. if needed use this field
 
     Contributors
     ============
 
-    * First Contributor
-    * Other Contributors
 
 .. if needed use this field
 
-  Depending on the plugin type, delete/complete the fields below
 
 
 Instruments
@@ -49,27 +46,20 @@ Below is the list of instruments included in this plugin
 Actuators
 +++++++++
 
-* **yyy**: control of yyy actuators
-* **xxx**: control of xxx actuators
 
 Viewer0D
 ++++++++
 
-* **yyy**: control of yyy 0D detector
-* **xxx**: control of xxx 0D detector
 
 Viewer1D
 ++++++++
 
-* **yyy**: control of yyy 1D detector
-* **xxx**: control of xxx 1D detector
+* **T1exp**: custom 1D detector for T1 sequence
+* **Rabi**: custom 1D detector for Rabi sequence
 
 
 Viewer2D
 ++++++++
-
-* **yyy**: control of yyy 2D detector
-* **xxx**: control of xxx 2D detector
 
 
 PID Models
@@ -83,6 +73,8 @@ Extensions
 Installation instructions
 =========================
 
-* PyMoDAQ’s version.
-* Operating system’s version.
-* What manufacturer’s drivers should be installed to make this plugin run?
+* PyMoDAQ version 5.
+* Developed under windows 10.
+* Drivers: 
+   - spincore drivers https://www.spincore.com/support/spinapi/
+   - fastcomtec software and drivers https://www.fastcomtec.com/ufm/mcs8a (the software must be opened to run the plugin)
