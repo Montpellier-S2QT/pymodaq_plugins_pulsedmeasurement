@@ -146,14 +146,17 @@ class PulseBlaster:
         #             f"Error: Invalid board number. Please enter a valid board number (0-{board_count - 1}): "
         #         )
 
-        # Initialize PulseBlaster, return error if occurs
-        if spinapi.pb_init() != 0:
-            raise PulseBlasterError(
-                f"Failed to initialize PulseBlaster board: {spinapi.pb_get_error()}"
-            )
-
-        # Set member variables
-        self.channels, self.clock, self.memory = self._match_firmware()
+        try:
+            # Set member variables
+            self.channels, self.clock, self.memory = self._match_firmware()
+        except:
+            # Initialize PulseBlaster, return error if occurs
+            if spinapi.pb_init() != 0:
+                raise PulseBlasterError(
+                    f"Failed to initialize PulseBlaster board: {spinapi.pb_get_error()}"
+                )
+            # Set member variables
+            self.channels, self.clock, self.memory = self._match_firmware()
         self.board_number = board_number
         self.queues = [[] for _ in range(self.channels)]
         self.instructions = []  # Instruction queue
@@ -503,11 +506,12 @@ class PulseBlaster:
             case "33-3":
                 return (24, 500.0, 4096)
             case _:
-                print("Unrecognized firmware")
-                channels = input("Enter the number of channels on the board: ")
-                clock = input("Enter the core clock frequency of the board (MHz): ")
-                memory = input("Enter the size of the memory of the board (kB): ")
-                return (channels, clock, memory)
+                raise Exception("Unrecognized firmware")
+                # print("Unrecognized firmware")
+                # channels = input("Enter the number of channels on the board: ")
+                # clock = input("Enter the core clock frequency of the board (MHz): ")
+                # memory = input("Enter the size of the memory of the board (kB): ")
+                # return (channels, clock, memory)
 
     def exit(self):
         if self.running:
