@@ -76,10 +76,6 @@ class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):
     def ini_attributes(self):
         self.controller: PulsedController = None
         self.x_axis = None
-        # Defining shortcut attributes for some of the settings for convenience
-        self.final_wait = self.settings.child("final_wait").value()
-        self.length = self.settings.child("length").value()
-        self.name = self.settings.child("name").value()
         self.iteration_count: int = None
 
     def commit_settings(self, param: Parameter):
@@ -96,12 +92,6 @@ class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):
         """
         if param.name() == "board_num":
             self.controller.pulseblaster.board_number = param.value()
-        elif param.value() == "final_wait":
-            self.final_wait == param.value()
-        elif param.value() == "name":
-            self.name == param.value()
-        elif param.value() == "length":
-            self.length == param.value()
 
     def ini_detector(self, controller=None):
         """Detector communication initialization
@@ -149,18 +139,22 @@ class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):
             initialized = True
 
         self.iteration_count = 0  # reinitialize the iteration counter
-        print(
-            self.controller.counter.set_length((self.length - self.final_wait) * 1e-9)
+        self.controller.counter.set_length(
+            (
+                self.settings.child("length").value()
+                - self.settings.child("final_wait").value()
+            )
+            * 1e-9
         )
         data_x_axis = self.controller.counter.get_timestamps()
         self.x_axis = Axis(data=data_x_axis, label="Time", units="s", index=0)
 
         self.dte_signal_temp.emit(
             DataToExport(
-                name=f"temp_{self.name}",
+                name=f"temp_{self.settings.child('name').value()}",
                 data=[
                     DataFromPlugins(
-                        name=self.name,
+                        name=self.settings.child("name").value(),
                         data=[np.zeros_like(data_x_axis)],
                         dim="Data1D",
                         labels=[f"Events ({self.iteration_count} sweeps)"],
@@ -190,26 +184,34 @@ class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):
         kwargs: dict
             others optionals arguments
         """
-        # Reinitialize accumulated data if this is the frst iteration
+        # Updatefct length and viewer x axis and start the fct measurement on the first iteration
         if self.iteration_count == 0:
-            # self.accumulated_data = np.zeros_like(
-            #     self.controller.counter.get_timestamps()
-            # )
+            self.controller.counter.set_length(
+                (
+                    self.settings.child("length").value()
+                    - self.settings.child("final_wait").value()
+                )
+                * 1e-9
+            )
+            print(self.controller.counter.get_length())
+            data_x_axis = self.controller.counter.get_timestamps()
+            print(data_x_axis)
+            self.x_axis = Axis(data=data_x_axis, label="Time", units="s", index=0)
             self.controller.counter.start_measure()
 
         self.controller.pulseblaster.reset()
         self.controller.pulseblaster.start()
-        time.sleep(self.length * 1e-9)
+        time.sleep(self.settings.child("length").value() * 1e-9)
         self.controller.pulseblaster.stop()
         # Get data from FCT
         # self.accumulated_data = self.controller.counter.get_data()
         self.iteration_count += 1
         self.dte_signal.emit(
             DataToExport(
-                self.name,
+                self.settings.child("name").value(),
                 data=[
                     DataFromPlugins(
-                        name=self.name,
+                        name=self.settings.child("name").value(),
                         data=self.controller.counter.get_data(),
                         dim="Data1D",
                         labels=[f"Events ({self.iteration_count} sweeps)"],

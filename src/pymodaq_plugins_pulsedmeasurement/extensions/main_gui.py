@@ -92,7 +92,7 @@ class Ui_MainWindow(object):
         self.layout_general_2.addLayout(self.layout_general_AOM_delay)
         self.layout_general_Final_wait = QtWidgets.QVBoxLayout()
         self.param_general_Final_wait = ScientificSpinBox(
-            self.centralwidget, base_unit="us", allowed_units=["ns", "us", "ms"]
+            self.centralwidget, base_unit="ns", allowed_units=["ns", "us", "ms"]
         )
         self.param_general_Final_wait.setFixedSize(QtCore.QSize(80, 20))
         self.layout_general_Final_wait.addWidget(self.param_general_Final_wait)

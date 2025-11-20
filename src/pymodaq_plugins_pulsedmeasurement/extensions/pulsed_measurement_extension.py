@@ -8,6 +8,9 @@ from pymodaq.utils.config import get_set_preset_path
 from pymodaq.extensions.utils import CustomExt
 from pymodaq.control_modules.daq_viewer import DAQ_Viewer
 
+from scientific_spinbox.widget import ScientificSpinBox
+
+import time
 import sys
 
 # import all the predefined pulse sequences
@@ -15,7 +18,7 @@ sys.path.append(r"C:\Users\Aurore")
 import pymodaq_pulse_sequences
 
 from pymodaq_plugins_pulsedmeasurement.utils import Config as PluginConfig
-from pymodaq_plugins_pulsedmeasurement.extensions.main_gui import Ui_PulsedMeasurement
+from pymodaq_plugins_pulsedmeasurement.extensions.main_gui import Ui_MainWindow
 from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
     PulsedController,
 )
@@ -50,7 +53,9 @@ class PulsedMeasurementExtension(CustomExt):
         # object: self.modules_manager which is a ModulesManager instance from the dashboard
 
         self.setup_ui()
-        # self.detector = self.modules_manager.get_mod_from_name("PulsedCounter")
+        self.controller = self.modules_manager.get_mod_from_name(
+            "PulsedCounter"
+        ).controller
 
     def setup_docks(self):
         """Mandatory method to be subclassed to setup the docks layout
@@ -75,10 +80,11 @@ class PulsedMeasurementExtension(CustomExt):
 
         self.docks["PMDock"] = gutils.Dock("Pulsed Measurement")
         self.dockarea.addDock(self.docks["PMDock"])
-        widget = QtWidgets.QWidget()
-        self.ui = Ui_PulsedMeasurement()
-        self.ui.setupUi(widget)
-        self.docks["PMDock"].addWidget(widget)
+        window = QtWidgets.QMainWindow()
+        self.ui = Ui_MainWindow()
+        print(type(self.ui))
+        self.ui.setupUi(window)
+        self.docks["PMDock"].addWidget(window)
 
     def setup_actions(self):
         """Method where to create actions to be subclassed. Mandatory
@@ -153,33 +159,49 @@ class PulsedMeasurementExtension(CustomExt):
         params_dict = {}
         for attr in dir(self.ui):
             # parse the parameters specific to the sequence or common to all sequences
-            if attr.startswith(f"param_{self.ui.selected_sequence}"):
-                params_dict["_".join(map(str, attr.split("_")[1:]))] = getattr(
-                    self.ui, attr
-                ).value()
-            elif attr.startswith("param_general") or attr.startswith("param_channel"):
-                params_dict["_".join(map(str, attr.split("_")[2:]))] = getattr(
-                    self.ui, attr
-                ).value()
+            if (
+                attr.startswith(f"param_{self.ui.selected_sequence}")
+                or attr.startswith("param_general")
+                or attr.startswith("param_channel")
+            ):
+                param_widget = getattr(self.ui, attr)
+                if isinstance(param_widget, QtWidgets.QSpinBox):
+                    param_value = param_widget.value()
+                elif isinstance(param_widget, ScientificSpinBox):
+                    param_value = float(param_widget.baseQuantity.magnitude)
+                params_dict["_".join(map(str, attr.split("_")[2:]))] = param_value
+
+        #########################
+        # Initialize the detector
+        #########################
+        sequence = getattr(
+            pymodaq_pulse_sequences, f"Sequence_{self.ui.selected_sequence}"
+        )(**params_dict)
+        self.detector.settings.child("detector_settings", "name").setValue(
+            self.ui.selected_sequence
+        )
+        self.detector.settings.child("detector_settings", "length").setValue(
+            sequence.length()
+        )
+        self.detector.settings.child("detector_settings", "final_wait").setValue(
+            params_dict["Final_wait"]
+        )
+        if not self.detector.initialized_state:
+            self.detector.init_hardware()
+        time.sleep(0.5)
 
         ##############################################################
         # Program the sequence from a defined class in sequence_folder
         ##############################################################
-        self.detector.close()
-        sequence = getattr(pymodaq_pulse_sequences, self.ui.selected_sequence)(
-            **params_dict
-        )
-        length = sequence.length()
-        self.detector.settings.child("length").setValue(length)
-        self.detector.ini_detector()
         instructions = sequence.build()
         for chan, inst in instructions:
-            self.detector.controller.pulseblaster.set_channel(chan, inst)
-        plot_data = self.detector.controller.pulseblaster.visualize_channels
-        self.detector.controller.pulseblaster.add_inst(
+            self.controller.pulseblaster.set_channel(chan, inst)
+        # plot_data = self.detector.detector.controller.pulseblaster.visualize_channels
+        self.controller.pulseblaster.add_inst(
             0x000000, sequence._final_inst, sequence._final_inst_data, 0
         )
-        self.detector.controller.pulseblaster.program()
+        self.controller.pulseblaster.program()
+        print("Pulse sequence programmed")
 
         #########################################
         # Plot the programmed sequence in the GUI
@@ -187,8 +209,8 @@ class PulsedMeasurementExtension(CustomExt):
         pass
 
     def change_binwidth(self):
-        new_bin = self.ui.param_general_Binwidth.currentText()
-        self.detector.counter.set_binwidth(new_bin)
+        new_bin = float(self.ui.param_general_Binwidth.currentText().split(" ")[0])
+        self.controller.counter.set_binwidth(new_bin)
 
 
 def main():
