@@ -12,8 +12,10 @@ from pymodaq.control_modules.viewer_utility_classes import (
     main,
 )
 from pymodaq.utils.data import DataFromPlugins
-from pymodaq_plugins_PulseSequences.hardware.pulsed_controller import PulsedController
-from pymodaq_plugins_PulseSequences.hardware._spinapi import SpinAPI
+from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
+    PulsedController,
+)
+from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
 
 
 class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):

@@ -12,12 +12,14 @@ from pymodaq.control_modules.viewer_utility_classes import (
     main,
 )
 from pymodaq.utils.data import DataFromPlugins
-from pymodaq_plugins_PulseSequences.hardware.pulsed_controller import PulsedController
-from pymodaq_plugins_PulseSequences.hardware._spinapi import SpinAPI
+from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
+    PulsedController,
+)
+from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
 
 
-class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
-    """Plugin for the T1 sequence that controls:
+class DAQ_1DViewer_Rabi(DAQ_Viewer_base):
+    """Plugin for the rabi sequence that controls:
         - SpinCore PulseBlaster USB ESR-Pro
         - FastComTec MCS8
     This object inherits all functionality to communicate with PyMoDAQ Module
@@ -79,6 +81,12 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
                     "type": "int",
                     "value": 5,
                 },
+                {
+                    "title": "AOM Delay (ns)",
+                    "name": "AOM_delay",
+                    "type": "list",
+                    "limits": [390],
+                },
             ],
         },
         {
@@ -96,6 +104,12 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
                 {
                     "title": "Counter Channel",
                     "name": "counter_channel",
+                    "type": "list",
+                    "limits": list(np.arange(21)),
+                },
+                {
+                    "title": "MW Channel",
+                    "name": "MW_channel",
                     "type": "list",
                     "limits": list(np.arange(21)),
                 },
@@ -135,11 +149,31 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
         self.controller: PulsedController = None
         self.x_axis = None
         # Defining shortcut attributes for some of the settings for convenience
-        self.start_tau = self.settings.child("sequence_settings").child("start").value()
-        self.stop_tau = self.settings.child("sequence_settings").child("stop").value()
+        self.start_MW = self.settings.child("sequence_settings").child("start").value()
+        self.stop_MW = self.settings.child("sequence_settings").child("stop").value()
         self.N = self.settings.child("sequence_settings").child("N").value()
         self.laser_length = (
             self.settings.child("sequence_settings").child("laser_length").value()
+        )
+        self.AOM_delay = (
+            self.settings.child("sequence_settings").child("AOM_delay").value()
+        )
+        self.margin = (
+            self.settings.child("sequence_settings").child("sequence_margin").value()
+        )
+        self.final_wait = (
+            self.settings.child("sequence_settings").child("final_wait").value()
+        )
+        self.counter_channel = (
+            self.settings.child("pulseblaster_settings")
+            .child("counter_channel")
+            .value()
+        )
+        self.laser_channel = (
+            self.settings.child("pulseblaster_settings").child("laser_channel").value()
+        )
+        self.MW_channel = (
+            self.settings.child("pulseblaster_settings").child("MW_channel").value()
         )
         self.iteration_count: int = None
         self.accumulated_data = None
@@ -161,13 +195,25 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
         elif param.name() == "binwidth":
             self.controller.counter.set_binwidth(param.value())
         elif param.name() == "start":
-            self.start_tau = param.value()
+            self.start_MW = param.value()
         elif param.name() == "stop":
-            self.stop_tau = param.value()
+            self.stop_MW = param.value()
         elif param.name() == "N":
             self.N = param.value()
         elif param.value() == "laser_length":
             self.laser_length == param.value()
+        elif param.value() == "AOM_delay":
+            self.AOM_delay == param.value()
+        elif param.value() == "sequence_margin":
+            self.margin == param.value()
+        elif param.value() == "final_wait":
+            self.final_wait == param.value()
+        elif param.value() == "counter_channel":
+            self.counter_channel == param.value()
+        elif param.value() == "laser_channel":
+            self.laser_channel == param.value()
+        elif param.value() == "MW_channel":
+            self.MW_channel == param.value()
 
     def ini_detector(self, controller=None):
         """Detector communication initialization
@@ -219,35 +265,73 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
         self.iteration_count = 0  # reinitialize the iteration counter
 
         length = self._sequence_length(
-            self.start_tau,
-            self.stop_tau,
+            self.start_MW,
+            self.stop_MW,
             self.N,
             self.laser_length,
-            self.settings.child("sequence_settings").child("sequence_margin").value(),
-            self.settings.child("sequence_settings").child("final_wait").value(),
+            self.margin,
+            self.AOM_delay,
+            self.final_wait,
         )
-        self.controller.counter.set_length(
-            (
-                length
-                - self.settings.child("sequence_settings").child("final_wait").value()
-            )
-            * 1e-9
-        )
+        print(self.controller.counter.set_length((length - self.final_wait) * 1e-9))
         data_x_axis = self.controller.counter.get_timestamps()
         self.x_axis = Axis(data=data_x_axis, label="Time", units="s", index=0)
 
         self.dte_signal_temp.emit(
             DataToExport(
-                name="temp_T1",
+                name="temp_rabi",
                 data=[
                     DataFromPlugins(
-                        name="T1",
+                        name="Rabi",
                         data=[np.zeros_like(data_x_axis)],
                         dim="Data1D",
                         labels=[f"Events ({self.iteration_count} sweeps)"],
                         axes=[self.x_axis],
                     )
                 ],
+            )
+        )
+
+        # Program Pulse Sequence
+        MW_delays = np.linspace(self.start_MW, self.stop_MW, self.N)
+        laser_rabi = [(0, self.margin)]
+        laser_rabi.append((1, self.laser_length))
+        for j in range(self.N):
+            laser_rabi.append((0, self.AOM_delay))
+            laser_rabi.append((0, MW_delays[j]))
+            laser_rabi.append((1, self.laser_length))
+        laser_rabi.append((0, self.margin + self.final_wait))
+
+        MW_rabi = [(0, self.margin + self.laser_length)]
+        for j in range(self.N):
+            MW_rabi.append((0, self.AOM_delay))
+            MW_rabi.append((1, MW_delays[j]))
+            MW_rabi.append((0, self.laser_length))
+        MW_rabi.append((0, self.margin + self.final_wait))
+
+        trigger_rabi = [(1, 50), (0, 50)]  # pas compris
+
+        self.controller.pulseblaster.set_channel(
+            self.laser_channel,
+            laser_rabi,
+        )
+        self.controller.pulseblaster.set_channel(
+            self.counter_channel,
+            trigger_rabi,
+        )
+        self.controller.pulseblaster.set_channel(
+            self.MW_channel,
+            MW_rabi,
+        )
+        self.controller.pulseblaster.compile_channels()
+        self.controller.pulseblaster.add_inst(
+            0x000000, SpinAPI.STOP, 0, 0
+        )  # the duration can be as small as the minimum intsruction length
+        self.controller.pulseblaster.program()
+        self.emit_status(
+            ThreadCommand(
+                "Update_Status",
+                ["Sequence Loaded"],
             )
         )
 
@@ -274,73 +358,35 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
         """
         # Reinitialize accumulated data if this is the frst iteration
         if self.iteration_count == 0:
-            self.accumulated_data = np.zeros_like(
-                self.controller.counter.get_timestamps()
-            )
+            # self.accumulated_data = np.zeros_like(
+            #     self.controller.counter.get_timestamps()
+            # )
             self.controller.counter.start_measure()
 
         length = self._sequence_length(
-            self.start_tau,
-            self.stop_tau,
+            self.start_MW,
+            self.stop_MW,
             self.N,
             self.laser_length,
-            self.settings.child("sequence_settings").child("sequence_margin").value(),
-            self.settings.child("sequence_settings").child("final_wait").value(),
-        )
-        interpulse_delays = np.geomspace(self.start_tau, self.stop_tau, self.N)
-        laser_T1 = [
-            (
-                0,
-                self.settings.child("sequence_settings")
-                .child("sequence_margin")
-                .value(),
-            )
-        ]
-        laser_T1.append((1, self.laser_length))
-        for j in range(self.N):
-            laser_T1.append((0, interpulse_delays[j]))
-            laser_T1.append((1, self.laser_length))
-        laser_T1.append(
-            (
-                0,
-                self.settings.child("sequence_settings")
-                .child("sequence_margin")
-                .value()
-                + self.settings.child("sequence_settings").child("final_wait").value(),
-            )
+            self.margin,
+            self.AOM_delay,
+            self.final_wait,
         )
 
-        trigger_T1 = [(1, 50), (0, 50)]
-
-        self.controller.pulseblaster.set_channel(
-            self.settings.child("pulseblaster_settings").child("laser_channel").value(),
-            laser_T1,
-        )
-        self.controller.pulseblaster.set_channel(
-            self.settings.child("pulseblaster_settings")
-            .child("counter_channel")
-            .value(),
-            trigger_T1,
-        )
-        self.controller.pulseblaster.compile_channels()
-        self.controller.pulseblaster.add_inst(
-            0x000000, SpinAPI.STOP, 0, 0
-        )  # the duration can be as small as the minimum intsruction length
-        self.controller.pulseblaster.program()
         self.controller.pulseblaster.reset()
         self.controller.pulseblaster.start()
         time.sleep(length * 1e-9)
         self.controller.pulseblaster.stop()
         # Get data from FCT
-        self.accumulated_data = self.controller.counter.get_data()
+        # self.accumulated_data = self.controller.counter.get_data()
         self.iteration_count += 1
         self.dte_signal.emit(
             DataToExport(
-                "T1",
+                "Rabi",
                 data=[
                     DataFromPlugins(
-                        name="T1",
-                        data=self.accumulated_data,
+                        name="Rabi",
+                        data=self.controller.counter.get_data(),
                         dim="Data1D",
                         labels=[f"Events ({self.iteration_count} sweeps)"],
                         axes=[self.x_axis],
@@ -370,6 +416,7 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
         N: int,
         laser_length: float,
         sequence_margin: float,
+        AOM_delay: float,
         final_wait: float,
     ):
         """Compute the length of the sequence based on the parameters given as inputs.
@@ -381,15 +428,17 @@ class DAQ_1DViewer_T1exp(DAQ_Viewer_base):
         laser_length (float): The laser pulse duration (ns)
         sequence_margin (float): The waiting time at the beginning and at the end
         of each sequence (ns)
+        AOM_delay (float): The waiting time before the MW pulse only, it corresponds to the time needed for the AOM to respond (ns)
         final_wait (float): The wainting time at the end of the sequence (ns)
 
         Return:
         length_sequence (float): the length of the sequence (ns)
         """
-        interpulse_delays = np.geomspace(start, stop, N)
+        MW_delays = np.linspace(start, stop, N)
         length_sequence = (
             (N + 1) * laser_length
-            + np.sum(interpulse_delays)
+            + np.sum(MW_delays)
+            + N * AOM_delay
             + 2 * sequence_margin
             + final_wait
         )

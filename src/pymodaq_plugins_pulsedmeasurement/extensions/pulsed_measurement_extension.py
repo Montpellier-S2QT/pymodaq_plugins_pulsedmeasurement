@@ -14,10 +14,12 @@ import sys
 sys.path.append(r"C:\Users\Aurore")
 import pymodaq_pulse_sequences
 
-from pymodaq_plugins_PulseSequences.utils import Config as PluginConfig
-from pymodaq_plugins_PulseSequences.extensions.main_gui import Ui_PulsedMeasurement
-from pymodaq_plugins_PulseSequences.hardware.pulsed_controller import PulsedController
-from pymodaq_plugins_PulseSequences.hardware._spinapi import SpinAPI
+from pymodaq_plugins_pulsedmeasurement.utils import Config as PluginConfig
+from pymodaq_plugins_pulsedmeasurement.extensions.main_gui import Ui_PulsedMeasurement
+from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
+    PulsedController,
+)
+from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
 
 logger = set_logger(get_module_name(__file__))
 
