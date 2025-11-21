@@ -343,6 +343,8 @@ class PulseBlaster:
         if num_channels == 1:
             axes = [axes]  # Ensure axes is always iterable
 
+        time_list = []
+        voltage_list = []
         for ax, channel_name in zip(axes, channels):
             time = []
             voltage = []
@@ -367,13 +369,16 @@ class PulseBlaster:
             ax.set_yticklabels(["0", "1"])
             ax.set_ylabel(channel_name)
 
+            time_list[(channel_name, time)]
+            voltage_list.append((channel_name, voltage))
+
         # Plot everything
         axes[-1].set_xlabel("Time (ns)")
         plt.suptitle("SpinCore Technologies Inc.")
         axes[-1].set_xlim(-0.10, max_time)
         plt.tight_layout(rect=[0.03, 0, 1, 0.95])
         # plt.show()
-        return fig, axes
+        return fig, axes, time_list, voltage_list
 
     # Compile channel patterns into instructions
     def compile_channels(self):

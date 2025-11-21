@@ -200,7 +200,9 @@ class PulsedMeasurementExtension(CustomExt):
         instructions = sequence.build()
         for chan, inst in instructions:
             self.controller.pulseblaster.set_channel(chan, inst)
-        # plot_data = self.detector.detector.controller.pulseblaster.visualize_channels
+        _, _, time_data, voltage_data = (
+            self.detector.detector.controller.pulseblaster.visualize_channels
+        )
         self.controller.pulseblaster.add_inst(
             0x000000, sequence._final_inst, sequence._final_inst_data, 0
         )
@@ -210,7 +212,10 @@ class PulsedMeasurementExtension(CustomExt):
         #########################################
         # Plot the programmed sequence in the GUI
         #########################################
-        pass
+        self.ui.plot_program.setLabel("bottom", "Time (ns)")
+        self.ui.plot_program.addLegend()
+        for time, voltage in zip(time_data, voltage_data):
+            self.ui.plot_program.plot(f"channel {time[0]}", time[1], voltage[1])
 
     def change_binwidth(self):
         new_bin = float(self.ui.param_general_Binwidth.currentText().split(" ")[0])
