@@ -1,5 +1,7 @@
 from qtpy import QtWidgets
 
+from pymodaq import Q_, Unit
+
 from pymodaq_gui import utils as gutils
 from pymodaq_utils.config import Config, ConfigError
 from pymodaq_utils.logger import set_logger, get_module_name
@@ -82,7 +84,6 @@ class PulsedMeasurementExtension(CustomExt):
         self.dockarea.addDock(self.docks["PMDock"])
         window = QtWidgets.QMainWindow()
         self.ui = Ui_MainWindow()
-        print(type(self.ui))
         self.ui.setupUi(window)
         self.docks["PMDock"].addWidget(window)
 
@@ -156,7 +157,7 @@ class PulsedMeasurementExtension(CustomExt):
         ##############################################
         # Parse sequence parameters from GUI spinboxes
         ##############################################
-        params_dict = {}
+        params_dict: dict[str, Q_] = {}
         for attr in dir(self.ui):
             # parse the parameters specific to the sequence or common to all sequences
             if (
@@ -166,9 +167,12 @@ class PulsedMeasurementExtension(CustomExt):
             ):
                 param_widget = getattr(self.ui, attr)
                 if isinstance(param_widget, QtWidgets.QSpinBox):
-                    param_value = param_widget.value()
+                    param_value = Q_(param_widget.value())
                 elif isinstance(param_widget, ScientificSpinBox):
-                    param_value = float(param_widget.baseQuantity.magnitude)
+                    gui_quantity = param_widget.baseQuantity
+                    param_value = Q_(
+                        gui_quantity.magnitude, Unit(str(gui_quantity.units))
+                    )  # because of unit registry conflict we have to "clone" the quantity from the GUI
                 params_dict["_".join(map(str, attr.split("_")[2:]))] = param_value
 
         #########################
@@ -181,10 +185,10 @@ class PulsedMeasurementExtension(CustomExt):
             self.ui.selected_sequence
         )
         self.detector.settings.child("detector_settings", "length").setValue(
-            sequence.length()
+            sequence.length().to("ns").magnitude
         )
         self.detector.settings.child("detector_settings", "final_wait").setValue(
-            params_dict["Final_wait"]
+            params_dict["Final_wait"].to("ns").magnitude
         )
         if not self.detector.initialized_state:
             self.detector.init_hardware()
