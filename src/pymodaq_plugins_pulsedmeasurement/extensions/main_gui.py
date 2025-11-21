@@ -14,6 +14,8 @@ import sys
 sys.path.append(r"C:\Users\Aurore")
 import pymodaq_pulse_sequences
 from PyQt5 import QtCore, QtGui, QtWidgets
+from decimal import Decimal
+from pymodaq import Q_, Unit
 
 
 class Ui_MainWindow(object):
@@ -33,6 +35,7 @@ class Ui_MainWindow(object):
         self.layout_channel_MW = QtWidgets.QVBoxLayout()
         self.param_channel_MW = QtWidgets.QSpinBox(self.centralwidget)
         self.param_channel_MW.setFixedSize(QtCore.QSize(40, 20))
+        self.param_channel_MW.setValue(2)
         self.layout_channel_MW.addWidget(self.param_channel_MW)
         self.label_channel_MW = QtWidgets.QLabel(self.centralwidget)
         self.label_channel_MW.setAlignment(QtCore.Qt.AlignCenter)
@@ -42,6 +45,7 @@ class Ui_MainWindow(object):
         self.layout_channel_Laser = QtWidgets.QVBoxLayout()
         self.param_channel_Laser = QtWidgets.QSpinBox(self.centralwidget)
         self.param_channel_Laser.setFixedSize(QtCore.QSize(40, 20))
+        self.param_channel_Laser.setValue(1)
         self.layout_channel_Laser.addWidget(self.param_channel_Laser)
         self.label_channel_Laser = QtWidgets.QLabel(self.centralwidget)
         self.label_channel_Laser.setAlignment(QtCore.Qt.AlignCenter)
@@ -51,6 +55,7 @@ class Ui_MainWindow(object):
         self.layout_channel_Counter = QtWidgets.QVBoxLayout()
         self.param_channel_Counter = QtWidgets.QSpinBox(self.centralwidget)
         self.param_channel_Counter.setFixedSize(QtCore.QSize(40, 20))
+        self.param_channel_Counter.setValue(0)
         self.layout_channel_Counter.addWidget(self.param_channel_Counter)
         self.label_channel_Counter = QtWidgets.QLabel(self.centralwidget)
         self.label_channel_Counter.setAlignment(QtCore.Qt.AlignCenter)
@@ -70,7 +75,10 @@ class Ui_MainWindow(object):
         self.layout_general_2 = QtWidgets.QHBoxLayout()
         self.layout_general_MW_amplitude = QtWidgets.QVBoxLayout()
         self.param_general_MW_amplitude = ScientificSpinBox(
-            self.centralwidget, base_unit="mV", allowed_units=["mV", "V"]
+            self.centralwidget,
+            base_unit="mV",
+            allowed_units=["mV", "V"],
+            default_value=Decimal(200),
         )
         self.param_general_MW_amplitude.setFixedSize(QtCore.QSize(80, 20))
         self.layout_general_MW_amplitude.addWidget(self.param_general_MW_amplitude)
@@ -81,7 +89,10 @@ class Ui_MainWindow(object):
         self.layout_general_2.addLayout(self.layout_general_MW_amplitude)
         self.layout_general_AOM_delay = QtWidgets.QVBoxLayout()
         self.param_general_AOM_delay = ScientificSpinBox(
-            self.centralwidget, base_unit="ns", allowed_units=["ns", "us", "ms"]
+            self.centralwidget,
+            base_unit="ns",
+            allowed_units=["ns", "us", "ms"],
+            default_value=Decimal(390),
         )
         self.param_general_AOM_delay.setFixedSize(QtCore.QSize(80, 20))
         self.layout_general_AOM_delay.addWidget(self.param_general_AOM_delay)
@@ -92,7 +103,10 @@ class Ui_MainWindow(object):
         self.layout_general_2.addLayout(self.layout_general_AOM_delay)
         self.layout_general_Final_wait = QtWidgets.QVBoxLayout()
         self.param_general_Final_wait = ScientificSpinBox(
-            self.centralwidget, base_unit="ns", allowed_units=["ns", "us", "ms"]
+            self.centralwidget,
+            base_unit="ns",
+            allowed_units=["ns", "us", "ms"],
+            default_value=Decimal(1000),
         )
         self.param_general_Final_wait.setFixedSize(QtCore.QSize(80, 20))
         self.layout_general_Final_wait.addWidget(self.param_general_Final_wait)
@@ -191,11 +205,19 @@ class Ui_MainWindow(object):
         # Parse the sequence specific parameters
         ########################################
         params_dict = {}
-        for attr, attr_type in inspect.get_annotations(
-            getattr(pymodaq_pulse_sequences, f"Sequence_{name}")
-        ).items():
-            if attr.startswith("gui_"):
-                params_dict["_".join(map(str, attr.split("_")[1:]))] = attr_type
+        attributes = [
+            attr
+            for attr in inspect.getmembers(
+                getattr(pymodaq_pulse_sequences, f"Sequence_{name}"),
+                lambda a: not inspect.isroutine(a),
+            )
+            if not (attr[0].startswith("__") and attr[0].endswith("__"))
+        ]
+        for quantity_name, quantity_value in attributes:
+            if quantity_name.startswith("gui_"):
+                params_dict["_".join(map(str, quantity_name.split("_")[1:]))] = (
+                    quantity_value
+                )
 
         ############################################################
         # Create the sequence widget and add them to the form layout
@@ -239,45 +261,47 @@ class Ui_MainWindow(object):
             self.__dict__[f"layout_{name}_select"]
         )
         # Create the widgets for the parameters
-        for p, t in params_dict.items():
+        for q_name, q_value in params_dict.items():
             # make the layout for the parameter widgets
-            self.__dict__[f"layout_{name}_{p}"] = QtWidgets.QVBoxLayout()
-            # self.__dict__[f"layout_{name}_{p}"].setObjectName(f"layout_{name}_{p}")
+            self.__dict__[f"layout_{name}_{q_name}"] = QtWidgets.QVBoxLayout()
             # make the spinbox and label widgets
-            if t == float:
-                self.__dict__[f"param_{name}_{p}"] = ScientificSpinBox(
-                    self.tab_parameters,
-                    base_unit="ns",
-                    allowed_units=["ns", "us", "ms"],
-                )
-            elif t == int:
-                self.__dict__[f"param_{name}_{p}"] = QtWidgets.QSpinBox(
+            if q_value.units == Unit(""):
+                self.__dict__[f"param_{name}_{q_name}"] = QtWidgets.QSpinBox(
                     self.tab_parameters
                 )
+                self.__dict__[f"param_{name}_{q_name}"].setValue(q_value.magnitude)
             else:
-                raise TypeError(
-                    f"Invalid parameter type: {t}. The parameter should be float or int."
+                base_unit = format(q_value.units, "~")
+                allowed_units = [
+                    format(unit, "~") for unit in get_allowed_units(q_value.units)
+                ]
+                self.__dict__[f"param_{name}_{q_name}"] = ScientificSpinBox(
+                    self.tab_parameters,
+                    base_unit=base_unit,
+                    allowed_units=allowed_units,
                 )
-            self.__dict__[f"param_{name}_{p}"].setMinimumSize(QtCore.QSize(80, 0))
-            # self.__dict__[f"param_{name}_{p}"].setObjectName(f"param_{name}_{p}")
-            self.__dict__[f"layout_{name}_{p}"].addWidget(
-                self.__dict__[f"param_{name}_{p}"]
+                self.__dict__[f"param_{name}_{q_name}"].setValue(q_value.magnitude)
+            self.__dict__[f"param_{name}_{q_name}"].setMinimumSize(QtCore.QSize(80, 0))
+            self.__dict__[f"layout_{name}_{q_name}"].addWidget(
+                self.__dict__[f"param_{name}_{q_name}"]
             )
-            self.__dict__[f"label_{name}_{p}"] = QtWidgets.QLabel(self.tab_parameters)
-            self.__dict__[f"label_{name}_{p}"].setMinimumSize(QtCore.QSize(0, 0))
-            self.__dict__[f"label_{name}_{p}"].setMaximumSize(
+            self.__dict__[f"label_{name}_{q_name}"] = QtWidgets.QLabel(
+                self.tab_parameters
+            )
+            self.__dict__[f"label_{name}_{q_name}"].setMinimumSize(QtCore.QSize(0, 0))
+            self.__dict__[f"label_{name}_{q_name}"].setMaximumSize(
                 QtCore.QSize(16777215, 15)
             )
-            self.__dict__[f"label_{name}_{p}"].setAlignment(QtCore.Qt.AlignCenter)
+            self.__dict__[f"label_{name}_{q_name}"].setAlignment(QtCore.Qt.AlignCenter)
             # self.__dict__[f"label_{name}_{p}"].setObjectName(f"label_{name}_{p}")
-            self.__dict__[f"label_{name}_{p}"].setText(
-                " ".join(map(str, p.split("_")))
+            self.__dict__[f"label_{name}_{q_name}"].setText(
+                " ".join(map(str, q_name.split("_")))
             )  # we replace the _ with spaces for the parameter names in the gui
-            self.__dict__[f"layout_{name}_{p}"].addWidget(
-                self.__dict__[f"label_{name}_{p}"]
+            self.__dict__[f"layout_{name}_{q_name}"].addWidget(
+                self.__dict__[f"label_{name}_{q_name}"]
             )
             self.__dict__[f"layout_{name}"].addLayout(
-                self.__dict__[f"layout_{name}_{p}"]
+                self.__dict__[f"layout_{name}_{q_name}"]
             )
         # add the spacer to keep thing on the left
         spacerItem = QtWidgets.QSpacerItem(
@@ -328,6 +352,20 @@ def deleteItems(layout):
                 widget.deleteLater()
             else:
                 deleteItems(item.layout())
+
+
+def get_allowed_units(unit):
+    """
+    Return the allowed units in the Scientific Spin Boxes from the given unit as a list.
+    """
+    prefixes = ["nano", "micro", "milli", "", "kilo", "mega", "giga"]
+    base_units = ["second", "volt", "hertz"]
+    for base_unit in base_units:
+        allowed_units = [Unit(pref + base_unit) for pref in prefixes]
+        if unit in allowed_units:
+            return allowed_units
+    allowed_units = [base_unit]
+    return allowed_units
 
 
 from pyqtgraph import PlotWidget
