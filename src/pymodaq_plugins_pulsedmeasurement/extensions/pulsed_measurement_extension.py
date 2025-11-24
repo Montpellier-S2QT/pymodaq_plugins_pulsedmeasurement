@@ -2,6 +2,7 @@ from qtpy import QtWidgets
 
 from pymodaq import Q_, Unit
 
+from pymodaq_utils import utils
 from pymodaq_gui import utils as gutils
 from pymodaq_utils.config import Config, ConfigError
 from pymodaq_utils.logger import set_logger, get_module_name
@@ -13,6 +14,7 @@ from pymodaq.control_modules.daq_viewer import DAQ_Viewer
 from scientific_spinbox.widget import ScientificSpinBox
 
 import time
+import numpy as np
 import sys
 
 # import all the predefined pulse sequences
@@ -30,6 +32,8 @@ logger = set_logger(get_module_name(__file__))
 
 main_config = Config()
 plugin_config = PluginConfig()
+
+PLOT_COLORS = [dict(color=color) for color in utils.plot_colors]
 
 # todo: modify this as you wish
 EXTENSION_NAME = (
@@ -108,6 +112,7 @@ class PulsedMeasurementExtension(CustomExt):
         """Connect actions and/or other widgets signal to methods"""
         self.ui.button_program.clicked.connect(self.program_pulseblaster)
         self.ui.param_general_Binwidth.currentTextChanged.connect(self.change_binwidth)
+        self.actions["quit"].connect(self.quit_fun)
 
     def setup_menu(self, menubar: QtWidgets.QMenuBar = None):
         """Non mandatory method to be subclassed in order to create a menubar
@@ -200,22 +205,28 @@ class PulsedMeasurementExtension(CustomExt):
         instructions = sequence.build()
         for chan, inst in instructions:
             self.controller.pulseblaster.set_channel(chan, inst)
-        _, _, time_data, voltage_data = (
-            self.detector.detector.controller.pulseblaster.visualize_channels
-        )
+        _, _, program_data = self.controller.pulseblaster.visualize_channels()
         self.controller.pulseblaster.add_inst(
             0x000000, sequence._final_inst, sequence._final_inst_data, 0
         )
+        self.controller.pulseblaster.compile_channels()
         self.controller.pulseblaster.program()
         print("Pulse sequence programmed")
 
         #########################################
         # Plot the programmed sequence in the GUI
         #########################################
-        self.ui.plot_program.setLabel("bottom", "Time (ns)")
-        self.ui.plot_program.addLegend()
-        for time, voltage in zip(time_data, voltage_data):
-            self.ui.plot_program.plot(f"channel {time[0]}", time[1], voltage[1])
+        self.ui.plot_program.plotItem.setLabel("bottom", "Time (ns)")
+        self.ui.plot_program.plotItem.addLegend()
+        for i, chan_data in enumerate(program_data):
+            channnel = chan_data[0]
+            self.ui.plot_program.plotItem.plot(
+                chan_data[1],
+                2 * i + np.array(chan_data[2]),
+                name=f"channel {channnel}",
+                pen=PLOT_COLORS[i],
+            )
+        # self.ui.plot_program.plotItem.update()
 
     def change_binwidth(self):
         new_bin = float(self.ui.param_general_Binwidth.currentText().split(" ")[0])
