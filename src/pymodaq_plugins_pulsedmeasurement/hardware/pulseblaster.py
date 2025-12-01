@@ -184,7 +184,7 @@ class PulseBlaster:
             raise PulseBlasterError(
                 f"Failed to start PulseBlaster program: {spinapi.pb_get_error()}"
             )
-        print("PulseBlaster program has been started.")
+        # print("PulseBlaster program has been started.")
         self.running = True
 
     # Reset the PulseBlaster board
@@ -194,7 +194,7 @@ class PulseBlaster:
             raise PulseBlasterError(
                 f"Failed to reset PulseBlaster program: {spinapi.pb_get_error()}"
             )
-        print("PulseBlaster board has been reset.")
+        # print("PulseBlaster board has been reset.")
         self.running = True
 
     # Stop the PuleBlaster board
@@ -204,7 +204,7 @@ class PulseBlaster:
             raise PulseBlasterError(
                 f"Failed to stop PulseBlaster program: {spinapi.pb_get_error()}"
             )
-        print("PulseBlaster board has been stopped.")
+        # print("PulseBlaster board has been stopped.")
         self.running = False
 
     # Closes the communication with PulseBlaster
