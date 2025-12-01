@@ -9,6 +9,7 @@ class Sequence_Template:
     Pulse Sequence class to be used in the PyMoDAQ Pulsed Measurement extension.
 
     TODO: Complete the attributes of this docstring with the corresponding parameters of your sequence.
+    Also change the name of this class with Sequence_<name> and add it to the __init__.py in your pulse sequences folder.
 
     Attributes:
     -----------
@@ -21,7 +22,7 @@ class Sequence_Template:
     """
 
     # TODO: initialize the attributes of your sequence with their default value and unit.
-    # The attributes starting with gui_ will be parsed and added tothe GUI when the sequence is added.
+    # The attributes starting with gui_ will be parsed and added to the GUI when the sequence is added.
     # The displayed names will be what follows gui_ (with spaces instead of _).
     gui_sleep = Q_(100, Unit("ns"))
     gui_laser_length = Q_(1, Unit("us"))
@@ -39,6 +40,7 @@ class Sequence_Template:
         self.gui_margin = kwargs["margin"]
         ...
 
+        self.wait: Q_ = kwargs["Final_wait"]
         self.laser_channel = kwargs["Laser"]
         self.counter_channel = kwargs["Counter"]
         ...
@@ -52,18 +54,20 @@ class Sequence_Template:
         are the durations of each instruction in ns.
         """
         # TODO: when writing your own sequence, replace the following lines with your function
-        margin = self.gui_laser_length.to("ns").magnitude
-        laser_length = self.gui_laser_length.to("ns").magnitude
-        sleep = self.gui_sleep.to("ns").magnitude
+        margin = round(self.gui_laser_length.to("ns").magnitude)
+        laser_length = round(self.gui_laser_length.to("ns").magnitude)
+        sleep = round(self.gui_sleep.to("ns").magnitude)
+        wait = round(self.wait.to("ns").magnitude)
         laser_inst = [(0, margin)]
         laser_inst.append((1, laser_length))
         laser_inst.append((0, sleep))
         laser_inst.append((1, laser_length))
         laser_inst.append((0, margin))
+        laser_inst.append((0, wait))
         counter_inst = [(1, 50), (0, 50)]
         return [
-            (int(self.laser_channel.magnitude), laser_inst),
-            (int(self.counter_channel.magnitude), counter_inst),
+            (self.laser_channel, laser_inst),
+            (self.counter_channel, counter_inst),
         ]
 
     def length(self):
@@ -72,7 +76,9 @@ class Sequence_Template:
         """
         # TODO: when writing your own sequence, replace the following lines with your function
         # that computes the length of your sequence
-        length = self.gui_margin * 2 + self.gui_laser_length * 2 + self.gui_sleep
+        length = (
+            self.gui_margin * 2 + self.gui_laser_length * 2 + self.gui_sleep + self.wait
+        )
         return length
 
 
@@ -81,8 +87,9 @@ if __name__ == "__main__":
         "sleep": Q_(1, Unit("us")),
         "laser_length": Q_(2, Unit("us")),
         "margin": Q_(1, Unit("us")),
-        "Laser": Q_(1),
-        "Counter": Q_(1),
+        "Laser": 1,
+        "Counter": 1,
+        "wait": Q_(1, Unit("ns")),
     }
     test_seq = Sequence_Template(**param_dict)
     print(test_seq.length())

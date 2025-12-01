@@ -156,10 +156,6 @@ class PulsedMeasurementExtension(CustomExt):
         """
         Build the selected pulse sequence based on the parameters given in the GUI, program it in the pulseblaster and plot it in the GUI.
         """
-        # TODO:
-        # - change the pulseblaster wrapper so that we can get the plot data from visualize_channels
-        # - update sequence plot with plot data (see pyqtgraph)
-
         ##############################################
         # Parse sequence parameters from GUI spinboxes
         ##############################################
