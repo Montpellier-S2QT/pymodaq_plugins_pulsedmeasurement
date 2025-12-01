@@ -265,11 +265,11 @@ class Ui_MainWindow(object):
             # make the layout for the parameter widgets
             self.__dict__[f"layout_{name}_{q_name}"] = QtWidgets.QVBoxLayout()
             # make the spinbox and label widgets
-            if q_value.units == Unit(""):
+            if type(q_value) == int:
                 self.__dict__[f"param_{name}_{q_name}"] = QtWidgets.QSpinBox(
                     self.tab_parameters
                 )
-                self.__dict__[f"param_{name}_{q_name}"].setValue(q_value.magnitude)
+                self.__dict__[f"param_{name}_{q_name}"].setValue(q_value)
             else:
                 base_unit = format(q_value.units, "~")
                 allowed_units = [

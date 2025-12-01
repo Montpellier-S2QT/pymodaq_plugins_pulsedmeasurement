@@ -193,9 +193,7 @@ class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):
                 )
                 * 1e-9
             )
-            print(self.controller.counter.get_length())
             data_x_axis = self.controller.counter.get_timestamps()
-            print(data_x_axis)
             self.x_axis = Axis(data=data_x_axis, label="Time", units="s", index=0)
             self.controller.counter.start_measure()
 

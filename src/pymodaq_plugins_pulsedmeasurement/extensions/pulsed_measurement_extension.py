@@ -13,6 +13,7 @@ from pymodaq.control_modules.daq_viewer import DAQ_Viewer
 
 from scientific_spinbox.widget import ScientificSpinBox
 
+from typing import Union
 import time
 import numpy as np
 import sys
@@ -112,7 +113,7 @@ class PulsedMeasurementExtension(CustomExt):
         """Connect actions and/or other widgets signal to methods"""
         self.ui.button_program.clicked.connect(self.program_pulseblaster)
         self.ui.param_general_Binwidth.currentTextChanged.connect(self.change_binwidth)
-        self.actions["quit"].connect(self.quit_fun)
+        # self.get_action("quit").connect(self.quit_fun) TODO: find how to do a quit function and connect it
 
     def setup_menu(self, menubar: QtWidgets.QMenuBar = None):
         """Non mandatory method to be subclassed in order to create a menubar
@@ -162,7 +163,7 @@ class PulsedMeasurementExtension(CustomExt):
         ##############################################
         # Parse sequence parameters from GUI spinboxes
         ##############################################
-        params_dict: dict[str, Q_] = {}
+        params_dict: dict[str, Union[Q_, int]] = {}
         for attr in dir(self.ui):
             # parse the parameters specific to the sequence or common to all sequences
             if (
@@ -172,11 +173,11 @@ class PulsedMeasurementExtension(CustomExt):
             ):
                 param_widget = getattr(self.ui, attr)
                 if isinstance(param_widget, QtWidgets.QSpinBox):
-                    param_value = Q_(param_widget.value())
+                    param_value = int(param_widget.value())
                 elif isinstance(param_widget, ScientificSpinBox):
                     gui_quantity = param_widget.baseQuantity
                     param_value = Q_(
-                        gui_quantity.magnitude, Unit(str(gui_quantity.units))
+                        float(gui_quantity.magnitude), Unit(str(gui_quantity.units))
                     )  # because of unit registry conflict we have to "clone" the quantity from the GUI
                 params_dict["_".join(map(str, attr.split("_")[2:]))] = param_value
 
@@ -206,16 +207,17 @@ class PulsedMeasurementExtension(CustomExt):
         for chan, inst in instructions:
             self.controller.pulseblaster.set_channel(chan, inst)
         _, _, program_data = self.controller.pulseblaster.visualize_channels()
+        self.controller.pulseblaster.compile_channels()
         self.controller.pulseblaster.add_inst(
             0x000000, sequence._final_inst, sequence._final_inst_data, 0
         )
-        self.controller.pulseblaster.compile_channels()
         self.controller.pulseblaster.program()
         print("Pulse sequence programmed")
 
         #########################################
         # Plot the programmed sequence in the GUI
         #########################################
+        self.ui.plot_program.plotItem.clear()
         self.ui.plot_program.plotItem.setLabel("bottom", "Time (ns)")
         self.ui.plot_program.plotItem.addLegend()
         for i, chan_data in enumerate(program_data):
@@ -231,6 +233,7 @@ class PulsedMeasurementExtension(CustomExt):
     def change_binwidth(self):
         new_bin = float(self.ui.param_general_Binwidth.currentText().split(" ")[0])
         self.controller.counter.set_binwidth(new_bin)
+        print(f"Changed binwidth to {self.controller.counter.get_binwidth()}")
 
 
 def main():
