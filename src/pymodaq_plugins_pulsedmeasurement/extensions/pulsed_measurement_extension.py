@@ -60,9 +60,7 @@ class PulsedMeasurementExtension(CustomExt):
         # object: self.modules_manager which is a ModulesManager instance from the dashboard
 
         self.setup_ui()
-        self.controller = self.modules_manager.get_mod_from_name(
-            "PulsedCounter"
-        ).controller
+        self.detector = self.modules_manager.get_mod_from_name("PulsedCounter")
 
     def setup_docks(self):
         """Mandatory method to be subclassed to setup the docks layout
@@ -79,11 +77,11 @@ class PulsedMeasurementExtension(CustomExt):
         pyqtgraph.dockarea.Dock
         """
         # Make the dock for the detector
-        self.docks["DetDock"] = gutils.Dock("Detector Viewer")
-        self.dockarea.addDock(self.docks["DetDock"])
-        self.detector = DAQ_Viewer(self.dockarea, dock_viewer=self.docks["DetDock"])
-        self.detector.daq_type = "DAQ1D"
-        self.detector.detector = "PulsedCounter"
+        # self.docks["DetDock"] = gutils.Dock("Detector Viewer")
+        # self.dockarea.addDock(self.docks["DetDock"])
+        # self.detector = DAQ_Viewer(self.dockarea, dock_viewer=self.docks["DetDock"])
+        # self.detector.daq_type = "DAQ1D"
+        # self.detector.detector = "PulsedCounter"
 
         self.docks["PMDock"] = gutils.Dock("Pulsed Measurement")
         self.dockarea.addDock(self.docks["PMDock"])
@@ -107,7 +105,7 @@ class PulsedMeasurementExtension(CustomExt):
         --------
         ActionManager.add_action
         """
-        self.add_action("quit", "Quit", "close2", "Quit program")
+        # self.add_action("quit", "Quit", "close2", "Quit program")
 
     def connect_things(self):
         """Connect actions and/or other widgets signal to methods"""
@@ -201,13 +199,13 @@ class PulsedMeasurementExtension(CustomExt):
         ##############################################################
         instructions = sequence.build()
         for chan, inst in instructions:
-            self.controller.pulseblaster.set_channel(chan, inst)
-        _, _, program_data = self.controller.pulseblaster.visualize_channels()
-        self.controller.pulseblaster.compile_channels()
-        self.controller.pulseblaster.add_inst(
+            self.detector.controller.pulseblaster.set_channel(chan, inst)
+        _, _, program_data = self.detector.controller.pulseblaster.visualize_channels()
+        self.detector.controller.pulseblaster.compile_channels()
+        self.detector.controller.pulseblaster.add_inst(
             0x000000, sequence._final_inst, sequence._final_inst_data, 0
         )
-        self.controller.pulseblaster.program()
+        self.detector.controller.pulseblaster.program()
         print("Pulse sequence programmed")
 
         #########################################
@@ -228,8 +226,8 @@ class PulsedMeasurementExtension(CustomExt):
 
     def change_binwidth(self):
         new_bin = float(self.ui.param_general_Binwidth.currentText().split(" ")[0])
-        self.controller.counter.set_binwidth(new_bin)
-        print(f"Changed binwidth to {self.controller.counter.get_binwidth()}")
+        self.detector.controller.counter.set_binwidth(new_bin)
+        print(f"Changed binwidth to {self.detector.controller.counter.get_binwidth()}")
 
 
 def main():
