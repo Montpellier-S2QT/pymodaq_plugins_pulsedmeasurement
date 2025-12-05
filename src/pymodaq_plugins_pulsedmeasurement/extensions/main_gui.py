@@ -105,7 +105,7 @@ class Ui_MainWindow(object):
         self.param_general_Final_wait = ScientificSpinBox(
             self.centralwidget,
             base_unit="ns",
-            allowed_units=["ns", "us", "ms"],
+            allowed_units=["ns", "us", "ms", "s"],
             default_value=Decimal(1000),
         )
         self.param_general_Final_wait.setFixedSize(QtCore.QSize(80, 20))
