@@ -155,8 +155,8 @@ class PulsedMeasurementExtension(CustomExt):
         # Make fit UI (for visualizing fit params)
         self.docks["Fit"] = gutils.Dock("Fit")
         self.dockarea.addDock(self.docks["Fit"])
-        fit_widget = QtWidgets.QLabel()
-        self.docks["Fit"].addWidget(fit_widget)
+        self.fit_widget = QtWidgets.QLabel()
+        self.docks["Fit"].addWidget(self.fit_widget)
 
         logger.debug("docks are set")
 
@@ -284,6 +284,14 @@ class PulsedMeasurementExtension(CustomExt):
         except:
             print("Fit failed")
             fit = np.zeros_like(ratios)
+
+        def build_fit_text():
+            fit_text = ""
+            for key, value in self.fit.fit_params.items():
+                fit_text += f"{key} = {value}\n"
+            return fit_text
+
+        self.fit_widget.setText(build_fit_text())
 
         ###########################
         # Build the DTE and send it

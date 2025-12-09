@@ -212,7 +212,8 @@ class DAQ_1DViewer_PulsedCounter(DAQ_Viewer_base):
                         name=self.settings.child("name").value(),
                         data=self.controller.counter.get_data(),
                         dim="Data1D",
-                        labels=[f"Events ({self.iteration_count} sweeps)"],
+                        # labels=[f"Events ({self.iteration_count} sweeps)"],
+                        labels=[f"Events"],
                         axes=[self.x_axis],
                     )
                 ],
