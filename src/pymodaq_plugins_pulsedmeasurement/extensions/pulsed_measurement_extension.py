@@ -13,7 +13,7 @@ from pymodaq.utils.config import Config as PyMoConfig
 from pymodaq.extensions.utils import CustomExt
 from pymodaq.control_modules.daq_viewer import DAQ_Viewer
 
-from pymodaq_gui.plotting.data_viewers.viewer import ViewerDispatcher
+from pymodaq_gui.plotting.data_viewers.viewer1D import Viewer1D
 
 from scientific_spinbox.widget import ScientificSpinBox
 
@@ -59,35 +59,29 @@ class PulsedMeasurementExtension(CustomExt):
     # render the widgets in a Qtree. If you wish to see it in your app, add is into a Dock
     params = [
         {
-            "title": "Integration period:",
-            "name": "period",
-            "type": "int",
-            "value": 100,
-        },
-        {
             "title": "Filter width:",
             "name": "conv_std_dev",
             "type": "float",
             "value": 20,
         },
-        {"title": "Number of pulses:", "name": "N_pulses", "type": "int", "value": 5},
+        {"title": "Number of pulses:", "name": "N_pulses", "type": "int", "value": 2},
         {
             "title": "Pulse length (s):",
             "name": "laser_length",
             "type": "float",
-            "value": 5e-6,
+            "value": 1e-6,
         },
         {
             "title": "Extraction margin (s):",
             "name": "margin",
             "type": "float",
-            "value": 50e-9,
+            "value": 0.5e-6,
         },
     ]
 
-    sweep_counter = 0
+    do_analysis_signal = QtCore.Signal(DataToExport)
     extraction_done_signal = QtCore.Signal(DataToExport)
-    do_integration_signal = QtCore.Signal(DataToExport)
+    plot_avg_done_signal = QtCore.Signal(DataToExport)
     integration_done_signal = QtCore.Signal(DataToExport)
 
     def __init__(self, parent: gutils.DockArea, dashboard):
@@ -97,6 +91,7 @@ class PulsedMeasurementExtension(CustomExt):
         # object: self.modules_manager which is a ModulesManager instance from the dashboard
 
         self.setup_ui()
+        self.t_det_done = time.perf_counter()
 
     def setup_docks(self):
         """Mandatory method to be subclassed to setup the docks layout
@@ -140,26 +135,15 @@ class PulsedMeasurementExtension(CustomExt):
 
         self.docks["extracted"] = gutils.Dock("Average pulse")
         self.dockarea.addDock(self.docks["extracted"])
-        self.area_computed = gutils.DockArea()
-        self.docks["extracted"].addWidget(self.area_computed)
-        self.extracted_viewer = ViewerDispatcher(self.area_computed)
+        widget = QtWidgets.QWidget()
+        self.docks["extracted"].addWidget(widget)
+        self.extracted_viewer = Viewer1D(title="Average pulse", parent=widget)
 
         self.docks["integration"] = gutils.Dock("Analysis")
         self.dockarea.addDock(self.docks["integration"])
-        self.area_computed = gutils.DockArea()
-        self.docks["integration"].addWidget(self.area_computed)
-        self.integrated_viewer = ViewerDispatcher(self.area_computed)
-
-        # self.docks["extracted"] = gutils.Dock("Extracted Pulse")
-        # self.dockarea.addDock(self.docks["extracted"])
-        # self.extracted_det = DAQ_Viewer(
-        #     self.dockarea,
-        #     title="Extracted Pulse",
-        #     daq_type="DAQ1D",
-        #     dock_viewer=self.docks["extracted"],
-        # )
-        # self.extracted_det.detector = "Extraction"
-        # self.extracted_det.controller = self
+        widget2 = QtWidgets.QWidget()
+        self.docks["integration"].addWidget(widget2)
+        self.integrated_viewer = Viewer1D(title="Analysis", parent=widget2)
 
         logger.debug("docks are set")
 
@@ -185,64 +169,62 @@ class PulsedMeasurementExtension(CustomExt):
         self.ui.button_program.clicked.connect(self.program_pulseblaster)
         self.ui.param_general_Binwidth.currentTextChanged.connect(self.change_binwidth)
         self.connect_action("quit", self.quit_fun)
-        self.detector.grab_done_signal.connect(self.process_extraction)
+        self.detector.grab_done_signal.connect(self.periodic_analysis)
+        self.do_analysis_signal.connect(self.process_extraction)
         self.extraction_done_signal.connect(self.plot_extracted_results)
-        self.extraction_done_signal.connect(self.periodic_integration)
-        self.do_integration_signal.connect(self.process_integration)
+        self.plot_avg_done_signal.connect(self.process_integration)
         self.integration_done_signal.connect(self.plot_integrated_results)
 
-    def periodic_integration(self, dte: DataToExport):
-        if self.sweep_counter < self.settings.child("period").value():
-            self.sweep_counter += 1
-            return
+    def periodic_analysis(self, dte: DataToExport):
+        if time.perf_counter() - self.t_det_done < 1:
+            pass
         else:
-            print(self.sweep_counter)
-            self.sweep_counter = 0
-            self.do_integration_signal.emit(dte)
+            self.t_det_done = time.perf_counter()
+            print("do analysis")
+            self.do_analysis_signal.emit(dte)
 
     def process_integration(self, dte: DataToExport):
-        print("oui oui oui")
-        # extracted_pulses = np.array(dte[0].deepcopy().data)
-        # try:
-        #     roi_dict = self.extracted_viewer.viewers[0].view.roi_manager.ROIs
-        # except:
-        #     return
-        # windows = [
-        #     (round(roi.pos()[0]), round(roi.pos()[1])) for roi in roi_dict.values()
-        # ]
-        # if windows == []:
-        #     return
-        # if windows[0][0] > windows[1][0]:
-        #     windows = [windows[1], windows[0]]
-        # ratios = np.empty(extracted_pulses.shape[0] - 2)
-        # errors = np.empty(extracted_pulses.shape[0] - 2)
-        # for i in range(1, extracted_pulses.shape[0] - 1):
-        #     polarized = extracted_pulses[i][windows[1][0] : windows[1][1]]
-        #     readout = extracted_pulses[i + 1][windows[0][0] : windows[0][1]]
-        #     if np.array_equal(polarized, np.zeros_like(polarized)):
-        #         ratio = 0
-        #         err_ratio = 0
-        #     else:
-        #         ratio = np.mean(readout) / np.mean(polarized)
-        #         err_ratio = ratio * np.sqrt(
-        #             np.std(readout) ** 2 / np.mean(readout) ** 2
-        #             + np.std(polarized) ** 2 / np.mean(polarized) ** 2
-        #         )
-        #     ratios[i - 1] = ratio
-        #     errors[i - 1] = err_ratio
-
-        # dte_processed = DataToExport("integrated")
-        # dte_processed.append(
-        #     DataWithAxes(
-        #         name="Decay",
-        #         source="calculated",
-        #         data=[ratios],
-        #         errors=[errors],
-        #         labels=["Decay"],
-        #     )
-        # )
-
-        # self.integration_done_signal.emit(dte_processed)
+        extracted_pulses = np.array(dte[0].deepcopy().data)
+        try:
+            roi_dict = self.extracted_viewer.roi_manager.ROIs
+        except:
+            print("cannot get rois")
+            return
+        windows = [
+            (round(roi.pos()[0]), round(roi.pos()[1])) for roi in roi_dict.values()
+        ]
+        if windows == []:
+            print("empty ROIs")
+            return
+        if windows[0][0] > windows[1][0]:
+            windows = [windows[1], windows[0]]
+        ratios = np.empty(extracted_pulses.shape[0] - 1)
+        errors = np.empty(extracted_pulses.shape[0] - 1)
+        for i in range(extracted_pulses.shape[0] - 1):
+            polarized = extracted_pulses[i][windows[1][0] : windows[1][1]]
+            readout = extracted_pulses[i + 1][windows[0][0] : windows[0][1]]
+            if np.array_equal(polarized, np.zeros_like(polarized)):
+                ratio = 0
+                err_ratio = 0
+            else:
+                ratio = np.mean(readout) / np.mean(polarized)
+                err_ratio = ratio * np.sqrt(
+                    np.std(readout) ** 2 / np.mean(readout) ** 2
+                    + np.std(polarized) ** 2 / np.mean(polarized) ** 2
+                )
+            ratios[i] = ratio
+            errors[i] = err_ratio
+        dte_processed = DataToExport("integrated")
+        dte_processed.append(
+            DataWithAxes(
+                name="Decay",
+                source="calculated",
+                data=[ratios],
+                errors=[errors],
+                labels=["Decay"],
+            )
+        )
+        self.integration_done_signal.emit(dte_processed)
 
     def process_extraction(self, dte: DataToExport):
         dte_processed = DataToExport("extracted")
@@ -280,13 +262,11 @@ class PulsedMeasurementExtension(CustomExt):
                 labels=["Average pulse"],
             )
         )
-        self.extracted_viewer.show_data(dte_to_plot)
+        self.plot_avg_done_signal.emit(dte)
+        self.extracted_viewer.show_data(dte_to_plot[0])
 
     def plot_integrated_results(self, dte: DataToExport):
-        self.integrated_viewer.show_data(dte)
-
-    def snap(self):
-        self.detector.snap()
+        self.integrated_viewer.show_data(dte[0])
 
     def setup_menu(self, menubar: QtWidgets.QMenuBar = None):
         """Non mandatory method to be subclassed in order to create a menubar
