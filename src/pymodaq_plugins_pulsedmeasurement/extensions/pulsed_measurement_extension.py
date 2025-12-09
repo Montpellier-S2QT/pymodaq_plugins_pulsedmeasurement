@@ -109,6 +109,7 @@ class PulsedMeasurementExtension(CustomExt):
         """
         logger.debug("setting docks")
 
+        # Make counter daq viewer
         self.docks["DetDock"] = gutils.Dock("Counter")
         self.dockarea.addDock(self.docks["DetDock"])
         self.detector = DAQ_Viewer(
@@ -122,6 +123,7 @@ class PulsedMeasurementExtension(CustomExt):
         self.controller.init_counter()
         self.controller.init_pulseblaster()
 
+        # Make pulse programmation UI
         self.docks["program"] = gutils.Dock("Pulse Program")
         self.dockarea.addDock(self.docks["program"])
         window = QtWidgets.QMainWindow()
@@ -129,10 +131,12 @@ class PulsedMeasurementExtension(CustomExt):
         self.ui.setupUi(window)
         self.docks["program"].addWidget(window)
 
+        # Make extension settings UI
         self.docks["Settings"] = gutils.Dock("Settings")
         self.dockarea.addDock(self.docks["Settings"])
         self.docks["Settings"].addWidget(self.settings_tree, 10)
 
+        # Make average pulse viewer
         self.docks["extracted"] = gutils.Dock("Average pulse")
         self.dockarea.addDock(self.docks["extracted"])
         widget = QtWidgets.QWidget()
@@ -141,11 +145,18 @@ class PulsedMeasurementExtension(CustomExt):
         self.extracted_viewer.roi_manager.add_roi_programmatically(descriptor="ROI0")
         self.extracted_viewer.roi_manager.add_roi_programmatically(descriptor="ROI1")
 
+        # Make integrated data viewer
         self.docks["integration"] = gutils.Dock("Analysis")
         self.dockarea.addDock(self.docks["integration"])
         widget2 = QtWidgets.QWidget()
         self.docks["integration"].addWidget(widget2)
         self.integrated_viewer = Viewer1D(title="Analysis", parent=widget2)
+
+        # Make fit UI (for visualizing fit params)
+        self.docks["Fit"] = gutils.Dock("Fit")
+        self.dockarea.addDock(self.docks["Fit"])
+        fit_widget = QtWidgets.QLabel()
+        self.docks["Fit"].addWidget(fit_widget)
 
         logger.debug("docks are set")
 
@@ -178,6 +189,9 @@ class PulsedMeasurementExtension(CustomExt):
         self.integration_done_signal.connect(self.plot_integrated_results)
 
     def periodic_analysis(self, dte: DataToExport):
+        """
+        This function regulates the rate of the data analysis to ~1Hz.
+        """
         if time.perf_counter() - self.t_det_done < 1:
             pass
         else:
@@ -185,7 +199,12 @@ class PulsedMeasurementExtension(CustomExt):
             self.do_analysis_signal.emit(dte)
 
     def process_extraction(self, dte: DataToExport):
-        dte_processed = DataToExport("extracted")
+        """
+        Extract the fluorescence pulses from the raw count data.
+        """
+        ####################
+        # Extract the pulses
+        ####################
         dwa = dte[0].deepcopy()
         extracted_pulses = self.ungated_conv_deriv(
             count_data=dwa.data[0],
@@ -200,6 +219,11 @@ class PulsedMeasurementExtension(CustomExt):
             ),
             conv_std_dev=self.settings.child("conv_std_dev").value(),
         )["laser_counts_arr"]
+
+        ###########################
+        # Build the DTE and send it
+        ###########################
+        dte_processed = DataToExport("extracted")
         dte_processed.append(
             DataWithAxes(
                 name="Extracted Pulses",
@@ -210,20 +234,30 @@ class PulsedMeasurementExtension(CustomExt):
         self.extraction_done_signal.emit(dte_processed)
 
     def process_integration(self, dte: DataToExport):
-        extracted_pulses = np.array(dte[0].deepcopy().data)
+        """
+        Get the coherence from the extracted pulses.
+        """
+        ######################################################
+        # Get the ROIs positions from the average pulse viewer
+        ######################################################
         try:
             roi_dict = self.extracted_viewer.roi_manager.ROIs
         except:
-            print("cannot get rois")
+            print("Cannot access ROIs from ROI Manager")
             return
         windows = [
             (round(roi.pos()[0]), round(roi.pos()[1])) for roi in roi_dict.values()
         ]
         if windows == []:
-            print("empty ROIs")
+            print("No ROI found in the ROI manager")
             return
         if windows[0][0] > windows[1][0]:
             windows = [windows[1], windows[0]]
+
+        ##############################################################
+        # Compute the coherence from the extracted fluorescence pulses
+        ##############################################################
+        extracted_pulses = np.array(dte[0].deepcopy().data)
         ratios = np.empty(extracted_pulses.shape[0] - 1)
         errors = np.empty(extracted_pulses.shape[0] - 1)
         for i in range(extracted_pulses.shape[0] - 1):
@@ -240,14 +274,28 @@ class PulsedMeasurementExtension(CustomExt):
                 )
             ratios[i] = ratio
             errors[i] = err_ratio
+
+        ###########################
+        # Fit the coherence profile
+        ###########################
+        try:
+            self.fit.fit_data(self.delays.to("s").magnitude, ratios)
+            fit = self.fit.calculate_fit(self.delays.to("s").magnitude)
+        except:
+            print("Fit failed")
+            fit = np.zeros_like(ratios)
+
+        ###########################
+        # Build the DTE and send it
+        ###########################
         dte_processed = DataToExport("integrated")
         dte_processed.append(
             DataWithAxes(
                 name="Decay",
                 source="calculated",
-                data=[ratios],
-                errors=[errors],
-                labels=["Decay"],
+                data=[ratios, fit],
+                errors=[errors, np.zeros_like(fit)],
+                labels=["Decay", "Fit"],
                 axes=[
                     Axis(
                         data=self.delays.to("s").magnitude,
@@ -261,7 +309,12 @@ class PulsedMeasurementExtension(CustomExt):
         self.integration_done_signal.emit(dte_processed)
 
     def plot_extracted_results(self, dte: DataToExport):
+        """
+        Plot the average pulse from the extraction process.
+        """
+        # Calculate average pulse
         avg_pulse = np.mean(np.array(dte[0].data), axis=0)
+        # Create DTE and plot the average pulse
         dte_to_plot = DataToExport("avg_pulse")
         dte_to_plot.append(
             DataWithAxes(
@@ -272,9 +325,13 @@ class PulsedMeasurementExtension(CustomExt):
             )
         )
         self.extracted_viewer.show_data(dte_to_plot[0])
+        # Send extracted pulses to integration process
         self.plot_avg_done_signal.emit(dte)
 
     def plot_integrated_results(self, dte: DataToExport):
+        """
+        Plot the analyzed data from the integration process.
+        """
         self.integrated_viewer.show_data(dte[0])
 
     def setup_menu(self, menubar: QtWidgets.QMenuBar = None):
@@ -345,12 +402,13 @@ class PulsedMeasurementExtension(CustomExt):
         sequence = getattr(
             pymodaq_pulse_sequences, f"Sequence_{self.ui.selected_sequence}"
         )(**params_dict)
-        self.delays = sequence.delays()
+        self.delays = sequence.delays
+        self.fit = sequence.Fit()
         self.detector.settings.child("detector_settings", "name").setValue(
             self.ui.selected_sequence
         )
         self.detector.settings.child("detector_settings", "length").setValue(
-            sequence.length().to("ns").magnitude
+            sequence.length.to("ns").magnitude
         )
         self.detector.settings.child("detector_settings", "final_wait").setValue(
             params_dict["Final_wait"].to("ns").magnitude
@@ -551,9 +609,6 @@ class PulsedMeasurementExtension(CustomExt):
         # sort all indices of rising and falling flanks
         rising_ind.sort()
         falling_ind.sort()
-
-        # find the maximum laser length to use as size for the laser array
-        # laser_length = np.abs(np.max(falling_ind - rising_ind))
 
         # initialize the empty output array
         laser_arr = np.zeros(
