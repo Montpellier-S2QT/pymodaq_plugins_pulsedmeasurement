@@ -6,7 +6,7 @@ from pymodaq_utils import utils
 from pymodaq_gui import utils as gutils
 from pymodaq_utils.config import Config, ConfigError
 from pymodaq_utils.logger import set_logger, get_module_name
-from pymodaq_data.data import DataToExport, DataWithAxes
+from pymodaq_data.data import DataToExport, DataWithAxes, Axis
 
 from pymodaq.utils.config import get_set_preset_path
 from pymodaq.utils.config import Config as PyMoConfig
@@ -64,18 +64,18 @@ class PulsedMeasurementExtension(CustomExt):
             "type": "float",
             "value": 20,
         },
-        {"title": "Number of pulses:", "name": "N_pulses", "type": "int", "value": 2},
-        {
-            "title": "Pulse length (s):",
-            "name": "laser_length",
-            "type": "float",
-            "value": 1e-6,
-        },
+        # {"title": "Number of pulses:", "name": "N_pulses", "type": "int", "value": 2},
+        # {
+        #     "title": "Pulse length (s):",
+        #     "name": "laser_length",
+        #     "type": "float",
+        #     "value": 1e-6,
+        # },
         {
             "title": "Extraction margin (s):",
             "name": "margin",
             "type": "float",
-            "value": 0.5e-6,
+            "value": 5e-8,
         },
     ]
 
@@ -138,6 +138,8 @@ class PulsedMeasurementExtension(CustomExt):
         widget = QtWidgets.QWidget()
         self.docks["extracted"].addWidget(widget)
         self.extracted_viewer = Viewer1D(title="Average pulse", parent=widget)
+        self.extracted_viewer.roi_manager.add_roi_programmatically(descriptor="ROI0")
+        self.extracted_viewer.roi_manager.add_roi_programmatically(descriptor="ROI1")
 
         self.docks["integration"] = gutils.Dock("Analysis")
         self.dockarea.addDock(self.docks["integration"])
@@ -180,8 +182,32 @@ class PulsedMeasurementExtension(CustomExt):
             pass
         else:
             self.t_det_done = time.perf_counter()
-            print("do analysis")
             self.do_analysis_signal.emit(dte)
+
+    def process_extraction(self, dte: DataToExport):
+        dte_processed = DataToExport("extracted")
+        dwa = dte[0].deepcopy()
+        extracted_pulses = self.ungated_conv_deriv(
+            count_data=dwa.data[0],
+            number_of_lasers=self.sequence_params["N_points"] + 1,
+            laser_length=round(
+                self.sequence_params["laser_length"].to("s").magnitude
+                / self.controller.counter.get_binwidth()
+            ),
+            margin=round(
+                self.settings.child("margin").value()
+                / self.controller.counter.get_binwidth()
+            ),
+            conv_std_dev=self.settings.child("conv_std_dev").value(),
+        )["laser_counts_arr"]
+        dte_processed.append(
+            DataWithAxes(
+                name="Extracted Pulses",
+                source="calculated",
+                data=[pulse for pulse in extracted_pulses],
+            )
+        )
+        self.extraction_done_signal.emit(dte_processed)
 
     def process_integration(self, dte: DataToExport):
         extracted_pulses = np.array(dte[0].deepcopy().data)
@@ -222,34 +248,17 @@ class PulsedMeasurementExtension(CustomExt):
                 data=[ratios],
                 errors=[errors],
                 labels=["Decay"],
+                axes=[
+                    Axis(
+                        data=self.delays.to("s").magnitude,
+                        label="Tau",
+                        units="s",
+                        index=0,
+                    )
+                ],
             )
         )
         self.integration_done_signal.emit(dte_processed)
-
-    def process_extraction(self, dte: DataToExport):
-        dte_processed = DataToExport("extracted")
-        dwa = dte[0].deepcopy()
-        extracted_pulses = self.ungated_conv_deriv(
-            count_data=dwa.data[0],
-            number_of_lasers=self.settings.child("N_pulses").value(),
-            laser_length=round(
-                self.settings.child("laser_length").value()
-                / self.controller.counter.get_binwidth()
-            ),
-            margin=round(
-                self.settings.child("margin").value()
-                / self.controller.counter.get_binwidth()
-            ),
-            conv_std_dev=self.settings.child("conv_std_dev").value(),
-        )["laser_counts_arr"]
-        dte_processed.append(
-            DataWithAxes(
-                name="Extracted Pulses",
-                source="calculated",
-                data=[pulse for pulse in extracted_pulses],
-            )
-        )
-        self.extraction_done_signal.emit(dte_processed)
 
     def plot_extracted_results(self, dte: DataToExport):
         avg_pulse = np.mean(np.array(dte[0].data), axis=0)
@@ -262,8 +271,8 @@ class PulsedMeasurementExtension(CustomExt):
                 labels=["Average pulse"],
             )
         )
-        self.plot_avg_done_signal.emit(dte)
         self.extracted_viewer.show_data(dte_to_plot[0])
+        self.plot_avg_done_signal.emit(dte)
 
     def plot_integrated_results(self, dte: DataToExport):
         self.integrated_viewer.show_data(dte[0])
@@ -336,6 +345,7 @@ class PulsedMeasurementExtension(CustomExt):
         sequence = getattr(
             pymodaq_pulse_sequences, f"Sequence_{self.ui.selected_sequence}"
         )(**params_dict)
+        self.delays = sequence.delays()
         self.detector.settings.child("detector_settings", "name").setValue(
             self.ui.selected_sequence
         )
@@ -427,7 +437,6 @@ class PulsedMeasurementExtension(CustomExt):
             careful in choosing a large conv_std_dev value and using a small
             laser pulse (rule of thumb: conv_std_dev < laser_length/10).
         """
-        # print(count_data)
         # Create return dictionary
         return_dict = {
             "laser_counts_arr": np.empty(0, dtype="int64"),
