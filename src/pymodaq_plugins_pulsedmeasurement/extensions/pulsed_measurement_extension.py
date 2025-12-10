@@ -41,11 +41,13 @@ main_config = Config()
 plugin_config = PluginConfig()
 config_pymodaq = PyMoConfig()
 
+# Importing all available pulse sequences from the path given in the plugin config file
+
 sys.path.append(
-    "/".join(plugin_config("Extension", "sequences_folder").split("\\")[:-1])
+    "/".join(plugin_config("Extension", "sequences_folder").split("/")[:-1])
 )
 pulse_sequences_module = importlib.import_module(
-    plugin_config("Extension", "sequences_folder").split("\\")[-1]
+    plugin_config("Extension", "sequences_folder").split("/")[-1]
 )
 
 
@@ -73,13 +75,6 @@ class PulsedMeasurementExtension(CustomExt):
             "type": "float",
             "value": 20,
         },
-        # {"title": "Number of pulses:", "name": "N_pulses", "type": "int", "value": 2},
-        # {
-        #     "title": "Pulse length (s):",
-        #     "name": "laser_length",
-        #     "type": "float",
-        #     "value": 1e-6,
-        # },
         {
             "title": "Extraction margin (s):",
             "name": "margin",

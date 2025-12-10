@@ -16,10 +16,10 @@ from pymodaq_plugins_pulsedmeasurement.utils import Config as PluginConfig
 plugin_config = PluginConfig()
 
 sys.path.append(
-    "/".join(plugin_config("Extension", "sequences_folder").split("\\")[:-1])
+    "/".join(plugin_config("Extension", "sequences_folder").split("/")[:-1])
 )
 pulse_sequences_module = importlib.import_module(
-    plugin_config("Extension", "sequences_folder").split("\\")[-1]
+    plugin_config("Extension", "sequences_folder").split("/")[-1]
 )
 
 from PyQt5 import QtCore, QtGui, QtWidgets
