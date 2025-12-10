@@ -18,14 +18,15 @@ from pymodaq_gui.plotting.data_viewers.viewer1D import Viewer1D
 from scientific_spinbox.widget import ScientificSpinBox
 
 from typing import Union
+import sys
+import importlib
 import time
 import numpy as np
 from scipy import ndimage
-import sys
 
 # import all the predefined pulse sequences
-sys.path.append(r"C:\Users\Aurore")
-import pymodaq_pulse_sequences
+# sys.path.append(r"C:\Users\Aurore")
+# import pymodaq_pulse_sequences
 
 from pymodaq_plugins_pulsedmeasurement.utils import Config as PluginConfig
 from pymodaq_plugins_pulsedmeasurement.extensions.main_gui import Ui_MainWindow
@@ -39,6 +40,23 @@ logger = set_logger(get_module_name(__file__))
 main_config = Config()
 plugin_config = PluginConfig()
 config_pymodaq = PyMoConfig()
+
+folder = "C:/Users/Aurore/pymodaq_pulse_sequences"
+
+print("OUI")
+
+
+def import_from_path(module_name, file_path):
+    """Import a module given its name and file path."""
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+pulse_sequences_module = import_from_path(folder.split("/")[-1], folder)
+
 
 PLOT_COLORS = [dict(color=color) for color in utils.plot_colors]
 
@@ -408,7 +426,7 @@ class PulsedMeasurementExtension(CustomExt):
         # Initialize the detector
         #########################
         sequence = getattr(
-            pymodaq_pulse_sequences, f"Sequence_{self.ui.selected_sequence}"
+            pulse_sequences_module, f"Sequence_{self.ui.selected_sequence}"
         )(**params_dict)
         self.delays = sequence.delays
         self.fit = sequence.Fit()
