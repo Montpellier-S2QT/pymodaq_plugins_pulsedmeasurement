@@ -4,7 +4,8 @@ from pymodaq import Q_, Unit
 
 from pymodaq_utils import utils
 from pymodaq_gui import utils as gutils
-from pymodaq_utils.config import Config, ConfigError
+import pymodaq_gui.utils.layout as layout_mod
+from pymodaq.utils import config as config_mod_pymodaq
 from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_data.data import DataToExport, DataWithAxes, Axis
 
@@ -37,7 +38,9 @@ from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
 
 logger = set_logger(get_module_name(__file__))
 
-main_config = Config()
+layout_path = config_mod_pymodaq.get_set_layout_path()
+
+main_config = config_mod_pymodaq.Config()
 plugin_config = PluginConfig()
 config_pymodaq = PyMoConfig()
 
@@ -70,6 +73,27 @@ class PulsedMeasurementExtension(CustomExt):
     # render the widgets in a Qtree. If you wish to see it in your app, add is into a Dock
     params = [
         {
+            "title": "Loaded presets",
+            "name": "loaded_files",
+            "type": "group",
+            "children": [
+                {
+                    "title": "Layout file",
+                    "name": "layout_file",
+                    "type": "str",
+                    "value": "",
+                    "readonly": True,
+                },
+                # {
+                #     "title": "ROI file",
+                #     "name": "roi_file",
+                #     "type": "str",
+                #     "value": "",
+                #     "readonly": True,
+                # },
+            ],
+        },
+        {
             "title": "Filter width:",
             "name": "conv_std_dev",
             "type": "float",
@@ -96,6 +120,7 @@ class PulsedMeasurementExtension(CustomExt):
 
         self.setup_ui()
         self.t_det_done = time.perf_counter()
+        self.dockarea.dock_signal.connect(self.save_layout_state_auto)
 
     def setup_docks(self):
         """Mandatory method to be subclassed to setup the docks layout
@@ -164,6 +189,9 @@ class PulsedMeasurementExtension(CustomExt):
 
         logger.debug("docks are set")
 
+        path = layout_path.joinpath(CLASS_NAME + ".dock")
+        self.load_layout_state(path)
+
     def setup_actions(self):
         """Method where to create actions to be subclassed. Mandatory
 
@@ -180,12 +208,42 @@ class PulsedMeasurementExtension(CustomExt):
         ActionManager.add_action
         """
         self.add_action("quit", "Quit", "close2", "Quit program")
+        self.add_action(
+            "load_layout",
+            "Load Layout",
+            "",
+            "Load the Saved Docks layout corresponding to the current preset",
+            auto_toolbar=False,
+        )
+        self.add_action(
+            "save_layout",
+            "Save Layout",
+            "",
+            "Save the Saved Docks layout corresponding to the current preset",
+            auto_toolbar=False,
+        )
 
     def connect_things(self):
         """Connect actions and/or other widgets signal to methods"""
         self.ui.button_program.clicked.connect(self.program_pulseblaster)
         self.ui.param_general_Binwidth.currentTextChanged.connect(self.change_binwidth)
         self.connect_action("quit", self.quit_fun)
+        self.connect_action(
+            "load_layout",
+            lambda: self.load_layout_state(
+                layout_path.joinpath(
+                    self.settings.child("loaded_files", "layout_file").value()
+                )
+            ),
+        )
+        self.connect_action(
+            "save_layout",
+            lambda: self.save_layout_state(
+                layout_path.joinpath(
+                    self.settings.child("loaded_files", "layout_file").value()
+                )
+            ),
+        )
         self.detector.grab_done_signal.connect(self.periodic_analysis)
         self.do_analysis_signal.connect(self.process_extraction)
         self.extraction_done_signal.connect(self.plot_extracted_results)
@@ -364,8 +422,9 @@ class PulsedMeasurementExtension(CustomExt):
         --------
         pymodaq.utils.managers.action_manager.ActionManager
         """
-        # todo create and populate menu using actions defined above in self.setup_actions
-        pass
+        settings_menu = menubar.addMenu("Settings")
+        settings_menu.addAction(self.get_action("load_layout"))
+        settings_menu.addAction(self.get_action("save_layout"))
 
     def value_changed(self, param):
         """Actions to perform when one of the param's value in self.settings is changed from the
@@ -645,6 +704,38 @@ class PulsedMeasurementExtension(CustomExt):
         return_dict["laser_indices_rising"] = rising_ind
         return_dict["laser_indices_falling"] = falling_ind
         return return_dict
+
+    def save_layout_state(self, file=None):
+        """
+        Save the current layout state in the select_file obtained pathname file.
+        Once done dump the pickle.
+
+        See Also
+        --------
+        utils.select_file
+        """
+        try:
+            layout_mod.save_layout_state(self.dockarea, file)
+        except Exception as e:
+            logger.exception(str(e))
+
+    def save_layout_state_auto(self):
+        path = layout_path.joinpath(CLASS_NAME + ".dock")
+        self.save_layout_state(path)
+
+    def load_layout_state(self, file=None):
+        """
+        Load and restore a layout state from the select_file obtained pathname file.
+
+        See Also
+        --------
+        utils.select_file
+        """
+        try:
+            file = layout_mod.load_layout_state(self.dockarea, file)
+            self.settings.child("loaded_files", "layout_file").setValue(file)
+        except Exception as e:
+            logger.exception(str(e))
 
 
 def main():
