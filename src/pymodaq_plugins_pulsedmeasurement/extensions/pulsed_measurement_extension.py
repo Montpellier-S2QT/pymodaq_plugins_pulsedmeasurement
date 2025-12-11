@@ -31,10 +31,12 @@ from scipy import ndimage
 
 from pymodaq_plugins_pulsedmeasurement.utils import Config as PluginConfig
 from pymodaq_plugins_pulsedmeasurement.extensions.main_gui import Ui_MainWindow
+from pymodaq_plugins_pulsedmeasurement.extensions.fit_widget import Ui_Form
 from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
     PulsedController,
 )
 from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
+from pymodaq_plugins_pulsedmeasurement.resources import fit_methods as fit
 
 logger = set_logger(get_module_name(__file__))
 
@@ -184,7 +186,11 @@ class PulsedMeasurementExtension(CustomExt):
         # Make fit UI (for visualizing fit params)
         self.docks["Fit"] = gutils.Dock("Fit")
         self.dockarea.addDock(self.docks["Fit"])
-        self.fit_widget = QtWidgets.QLabel()
+        # self.fit_widget = QtWidgets.QLabel()
+        # self.docks["Fit"].addWidget(self.fit_widget)
+        self.fit_widget = QtWidgets.QWidget()
+        self.fit_ui = Ui_Form()
+        self.fit_ui.setupUi(self.fit_widget)
         self.docks["Fit"].addWidget(self.fit_widget)
 
         logger.debug("docks are set")
