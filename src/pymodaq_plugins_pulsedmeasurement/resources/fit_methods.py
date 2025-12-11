@@ -32,7 +32,7 @@ def compute_fft(x_data, y_data, zeropad=0):
     return fft_x[:middle], fft_y[:middle]
 
 
-def constant_model(prefix=None):
+def _constant_model(prefix=None):
     """
     Return a constant Model and its associated Parameter object.
 
@@ -59,7 +59,7 @@ def constant_model(prefix=None):
     return model, params
 
 
-def amplitude_model(prefix=None):
+def _amplitude_model(prefix=None):
     """
     Return a constant scaling Model and its associated Parameter object.
 
@@ -68,8 +68,8 @@ def amplitude_model(prefix=None):
                        distinguished from each other to prevent name collisions.
     """
 
-    def amplitude_function(x, amp):
-        return amp * x
+    def amplitude_function(x, amplitude):
+        return amplitude * x
 
     if not isinstance(prefix, str) and prefix is not None:
         logger.warning(
@@ -86,7 +86,7 @@ def amplitude_model(prefix=None):
     return model, params
 
 
-def bare_sine_model(prefix=None):
+def _bare_sine_model(prefix=None):
     """
     Return a bare sine Model without amplitude or offset and its associated Parameter object.
 
@@ -95,8 +95,8 @@ def bare_sine_model(prefix=None):
                        distinguished from each other to prevent name collisions.
     """
 
-    def bare_sine_function(x, freq, phase):
-        return np.sin(2 * np.pi * freq * x + phase)
+    def bare_sine_function(x, frequency, phase):
+        return np.sin(2 * np.pi * frequency * x + phase)
 
     if not isinstance(prefix, str) and prefix is not None:
         logger.warning(
@@ -113,7 +113,7 @@ def bare_sine_model(prefix=None):
     return model, params
 
 
-def bare_stretched_decay_model(prefix=None):
+def _bare_stretched_decay_model(prefix=None):
     """
     Make a stretched exponential decay Model and its associated Parameter object.
 
@@ -140,17 +140,17 @@ def bare_stretched_decay_model(prefix=None):
     return model, params
 
 
-def sine_model(prefix=None):
+def _sine_model(prefix=None):
     """
     Return a sine Model with amplitude as well as its associated Parameter object.
-    Composite model of bare_sine_model and amplitude_model.
+    Composite model of _bare_sine_model and _amplitude_model.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
                        distinguished from each other to prevent name collisions.
     """
-    bare_sine, _ = bare_sine_model(prefix=prefix)
-    amplitude, _ = amplitude_model(prefix=prefix)
+    bare_sine, _ = _bare_sine_model(prefix=prefix)
+    amplitude, _ = _amplitude_model(prefix=prefix)
 
     sine = bare_sine * amplitude
     params = sine.make_params()
@@ -158,17 +158,17 @@ def sine_model(prefix=None):
     return sine, params
 
 
-def sine_with_offset_model(prefix=None):
+def _sine_with_offset_model(prefix=None):
     """
     Return a sine Model with offset and amplitude as well as its associated Parameter object.
-    Composite model of sine_model and constant_model.
+    Composite model of _sine_model and _constant_model.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
                        distinguished from each other to prevent name collisions.
     """
-    sine, _ = sine_model(prefix=prefix)
-    constant, _ = constant_model(prefix=prefix)
+    sine, _ = _sine_model(prefix=prefix)
+    constant, _ = _constant_model(prefix=prefix)
 
     sine_with_offset = sine + constant
     params = sine_with_offset.make_params()
@@ -176,59 +176,10 @@ def sine_with_offset_model(prefix=None):
     return sine_with_offset, params
 
 
-# def double_sine_model(prefix=None):
-#     """
-#     Return a double sine Model with an offset as well as its associated Parameter object.
-#     Composite model of sine_model and constant_model.
-
-#     :param prefix (str): optional, if multiple models should be used in a
-#                        composite way and the parameters of each model should be
-#                        distinguished from each other to prevent name collisions.
-#     """
-#     if prefix is None:
-#         add_text = ""
-#     else:
-#         add_text = prefix
-
-#     sine1, _ = sine_model(prefix="s1_" + add_text)
-#     sine2, _ = sine_model(prefix="s2_" + add_text)
-#     offset, _ = constant_model(prefix=prefix)
-
-#     double_sine = sine1 + sine2 + offset
-#     params = double_sine.make_params()
-
-#     return double_sine, params
-
-
-# def triple_sine_model(prefix=None):
-#     """
-#     Return a triple sine Model with an offset as well as its associated Parameter object.
-#     Composite model of sine_model and constant_model.
-
-#     :param prefix (str): optional, if multiple models should be used in a
-#                        composite way and the parameters of each model should be
-#                        distinguished from each other to prevent name collisions.
-#     """
-#     if prefix is None:
-#         add_text = ""
-#     else:
-#         add_text = prefix
-
-#     sine1, _ = sine_model(prefix="s1_" + add_text)
-#     sine2, _ = sine_model(prefix="s2_" + add_text)
-#     sine3, _ = sine_model(prefix="s3_" + add_text)
-#     offset, _ = constant_model(prefix=prefix)
-
-#     triple_sine = sine1 + sine2 + sine3 + offset
-#     params = triple_sine.make_params()
-
-#     return triple_sine, params
-
-
-def multi_sine_model(N, prefix=None):
+def _multi_sine_model(N, prefix=None):
     """
     Return a superpositon of N sine Models with an offset as well as its associated Parameter object.
-    Composite model of sine_model and constant_model.
+    Composite model of _sine_model and _constant_model.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
@@ -239,11 +190,11 @@ def multi_sine_model(N, prefix=None):
     else:
         add_text = prefix
 
-    offset, _ = constant_model(prefix=prefix)
+    offset, _ = _constant_model(prefix=prefix)
     multi_sine = offset
 
     for i in range(N):
-        sine, _ = sine_model(prefix=f"s{i}_" + add_text)
+        sine, _ = _sine_model(prefix=f"s{i}_" + add_text)
         multi_sine += sine
 
     params = multi_sine.make_params()
@@ -254,15 +205,15 @@ def multi_sine_model(N, prefix=None):
 def sine_decay_model(prefix=None):
     """
     Return a decaying sine Model with an offset as well as its associated Parameter object.
-    Composite model of sine_model, bare_stretched_decay_model and constant_model.
+    Composite model of _sine_model, _bare_stretched_decay_model and _constant_model.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
                        distinguished from each other to prevent name collisions.
     """
-    sine, _ = sine_model(prefix=prefix)
-    decay, _ = bare_stretched_decay_model(prefix=prefix)
-    offset, _ = constant_model(prefix=prefix)
+    sine, _ = _sine_model(prefix=prefix)
+    decay, _ = _bare_stretched_decay_model(prefix=prefix)
+    offset, _ = _constant_model(prefix=prefix)
 
     sine_decay = sine * decay + offset
     params = sine_decay.make_params()
@@ -270,56 +221,18 @@ def sine_decay_model(prefix=None):
     return sine_decay, params
 
 
-# def double_sine_decay_model(prefix=None):
-#     """
-#     Return a decaying double sine Model with an offset as well as its associated Parameter object.
-#     Composite model of double_sine_model, bare_stretched_decay_model and constant_model.
-
-#     :param prefix (str): optional, if multiple models should be used in a
-#                        composite way and the parameters of each model should be
-#                        distinguished from each other to prevent name collisions.
-#     """
-#     double_sine, _ = double_sine_model(prefix=prefix)
-#     decay, _ = bare_stretched_decay_model(prefix=prefix)
-#     offset, _ = constant_model(prefix=prefix)
-
-#     double_sine_decay = double_sine * decay + offset
-#     params = double_sine_decay.make_params()
-
-#     return double_sine_decay, params
-
-
-# def triple_sine_decay_model(prefix=None):
-#     """
-#     Return a decaying triple sine Model with an offset as well as its associated Parameter object.
-#     Composite model of triple_sine_model, bare_stretched_decay_model and constant_model.
-
-#     :param prefix (str): optional, if multiple models should be used in a
-#                        composite way and the parameters of each model should be
-#                        distinguished from each other to prevent name collisions.
-#     """
-#     triple_sine, _ = triple_sine_model(prefix=prefix)
-#     decay, _ = bare_stretched_decay_model(prefix=prefix)
-#     offset, _ = constant_model(prefix=prefix)
-
-#     triple_sine_decay = triple_sine * decay + offset
-#     params = triple_sine_decay.make_params()
-
-#     return triple_sine_decay, params
-
-
 def multi_sine_decay_model(N, prefix=None):
     """
     Return a decaying multi sine Model with an offset as well as its associated Parameter object.
-    Composite model of multi_sine_model, bare_stretched_decay_model and constant_model.
+    Composite model of _multi_sine_model, _bare_stretched_decay_model and _constant_model.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
                        distinguished from each other to prevent name collisions.
     """
-    multi_sine, _ = multi_sine_model(N=N, prefix=prefix)
-    decay, _ = bare_stretched_decay_model(prefix=prefix)
-    offset, _ = constant_model(prefix=prefix)
+    multi_sine, _ = _multi_sine_model(N=N, prefix=prefix)
+    decay, _ = _bare_stretched_decay_model(prefix=prefix)
+    offset, _ = _constant_model(prefix=prefix)
 
     multi_sine_decay = multi_sine * decay + offset
     params = multi_sine_decay.make_params()
@@ -330,15 +243,15 @@ def multi_sine_decay_model(N, prefix=None):
 def stretched_decay_model(prefix=None):
     """
     Return a stretched exponential decay Model with an amplitude and an offset as well as its associated Parameter object.
-    Composite model of bare_stretched_decay_model, amplitude_model and constant_model.
+    Composite model of _bare_stretched_decay_model, _amplitude_model and _constant_model.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
                        distinguished from each other to prevent name collisions.
     """
-    decay, _ = bare_stretched_decay_model(prefix=prefix)
-    amplitude, _ = amplitude_model(prefix=prefix)
-    offset, _ = constant_model(prefix=prefix)
+    decay, _ = _bare_stretched_decay_model(prefix=prefix)
+    amplitude, _ = _amplitude_model(prefix=prefix)
+    offset, _ = _constant_model(prefix=prefix)
 
     stretched_decay = amplitude * decay + offset
     params = stretched_decay.make_params()
@@ -482,9 +395,93 @@ def guess_stretched_decay(x_axis: NDArray, data: NDArray, params):
     # Arbitrary starting point for the stretch factor !
     params["beta"].set(value=2, min=0)
 
+    return params
+
+
+def guess_sine_decay(x_axis: NDArray, data: NDArray, params):
+    offset = np.mean(data)  # The offset is estimated as the averge data
+    data_level = data - offset
+    ampl_val = (np.max(data) - np.min(data)) / 2
+
+    fft_x, fft_y = compute_fft(x_axis, data_level, zeropad_num=1)
+    stepsize = x_axis[1] - x_axis[0]  # for frequency axis
+    fft_x_red = fft_x[np.where(fft_y > 0)]
+    fft_y_red = fft_y[np.where(fft_y > 0)]
+    frequency = fft_x_red[np.argmax(np.log(fft_y_red))]  # log acts as noise filter
+
+    # Remove noise
+    a = np.std(fft_y)
+    for i in range(0, len(fft_x)):
+        if fft_y[i] <= a:
+            fft_y[i] = 0
+    # Calculating the width of the FT peak for the estimation of lifetime
+    s = 0
+    for i in range(0, len(fft_x)):
+        s += fft_y[i] * abs(fft_x[1] - fft_x[0]) / max(fft_y)
+    lifetime_val = 0.5 / s
+
+    # Find minimal distance to the next meas point in the corresponding x value
+    min_x_diff = np.ediff1d(x_axis).min()
+    # How many points are used to sample the estimated frequency with min_x_diff:
+    iter_steps = int(1 / (frequency * min_x_diff))
+    if iter_steps < 1:
+        iter_steps = 1
+    sum_res = np.zeros(iter_steps)
+    # Procedure: Create sin waves with different phases and perform a summation.
+    #            The sum shows how well the sine was fitting to the actual data.
+    #            The best fitting sine should be a maximum of the summed time
+    #            trace.
+    for iter_s in range(iter_steps):
+        func_val = ampl_val * np.sin(
+            2 * np.pi * frequency * x_axis + iter_s / iter_steps * 2 * np.pi
+        )
+        sum_res[iter_s] = np.abs(data_level - func_val).sum()
+    # The minimum indicates where the sine function was fittng the worst,
+    # therefore subtract pi. This will also ensure that the estimated phase will
+    # be in the interval [-pi,pi].
+    phase = (sum_res.argmax() / iter_steps * 2 * np.pi - np.pi) % (2 * np.pi)
+
+    # Set values and bounds of initial parameters
+    params["frequency"].set(
+        value=frequency,
+        min=min(0.1 / (x_axis[-1] - x_axis[0]), fft_x[3]),
+        max=min(0.5 / stepsize, fft_x.max() - abs(fft_x[2] - fft_x[0])),
+    )
+    params["phase"].set(value=phase, min=-2 * np.pi, max=2 * np.pi)
+    params["amplitude"].set(value=ampl_val, min=0)
+    params["offset"].set(value=offset)
+
+    params["lifetime"].set(
+        value=lifetime_val,
+        min=2 * (x_axis[1] - x_axis[0]),
+        max=1 / (abs(fft_x[1] - fft_x[0]) * 0.5),
+    )
+
+    return params
+
+
+def guess_multi_sine_decay(x_axis: NDArray, data: NDArray, params, N: int):
+    # Procedure: make successive single sine_decay fits substracting each result before going to the next fit.
+    data_sub = data
+    taus = np.empty(N)
+    for i in range(N):
+        result = sine_decay_fit(x_axis=x_axis, data=data_sub, guesser=guess_sine)
+        taus[i] = result.params["tau"].value
+        data_sub -= result.best_fit
+
+        # Fill the parameter dict:
+        params[f"s{i}_amplitude"].set(value=result.params["amplitude"].value)
+        params[f"s{i}_frequency"].set(value=result.params["frequency"].value)
+        params[f"s{i}_phase"].set(value=result.params["phase"].value)
+
+    params["offset"].set(value=data.mean())
+    params["tau"].set(value=np.mean(taus), min=2 * (x_axis[1] - x_axis[0]))
+
+    return params
+
 
 def sine_fit(x_axis: NDArray, data: NDArray, guesser=guess_sine):
-    sine, params = sine_model()
+    sine, params = _sine_model()
     params = guesser(x_axis, data, params)
     try:
         result = sine.fit(data, x=x_axis, params=params)
@@ -497,7 +494,7 @@ def sine_fit(x_axis: NDArray, data: NDArray, guesser=guess_sine):
 
 
 def multi_sine_fit(x_axis: NDArray, data: NDArray, N: int, guesser=guess_multi_sine):
-    multi_sine, params = multi_sine_model(N=N)
+    multi_sine, params = _multi_sine_model(N=N)
     params = guesser(x_axis, data, params, N=N)
     try:
         result = multi_sine.fit(data, x=x_axis, params=params)
@@ -519,6 +516,36 @@ def stretched_decay_fit(x_axis: NDArray, data: NDArray, guesser=guess_stretched_
         result = decay.fit(data, x=x_axis, params=params)
         logger.warning(
             "The stretched exponential decay fit did not work.\n"
+            "Error message: {0}\n".format(result.message)
+        )
+    return result
+
+
+def sine_decay_fit(x_axis: NDArray, data: NDArray, guesser=guess_sine_decay):
+    sine_decay, params = stretched_decay_model()
+    params = guesser(x_axis, data, params)
+    try:
+        result = sine_decay.fit(data, x=x_axis, params=params)
+    except:
+        result = sine_decay.fit(data, x=x_axis, params=params)
+        logger.warning(
+            "The sine decay fit did not work.\n"
+            "Error message: {0}\n".format(result.message)
+        )
+    return result
+
+
+def multi_sine_decay_fit(
+    x_axis: NDArray, data: NDArray, N: int, guesser=guess_multi_sine_decay
+):
+    multi_sine_decay, params = multi_sine_decay_model(N=N)
+    params = guesser(x_axis, data, params, N=N)
+    try:
+        result = multi_sine_decay.fit(data, x=x_axis, params=params)
+    except:
+        result = multi_sine_decay.fit(data, x=x_axis, params=params)
+        logger.warning(
+            "The multi sine decay fit did not work.\n"
             "Error message: {0}\n".format(result.message)
         )
     return result
