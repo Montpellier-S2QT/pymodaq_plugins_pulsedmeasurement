@@ -37,8 +37,6 @@ from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
 )
 from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
 
-from pymodaq_plugins_pulsedmeasurement.resources import fit_methods as fit
-
 logger = set_logger(get_module_name(__file__))
 
 layout_path = config_mod_pymodaq.get_set_layout_path()
@@ -47,24 +45,30 @@ main_config = config_mod_pymodaq.Config()
 plugin_config = PluginConfig()
 config_pymodaq = PyMoConfig()
 
-# Import all available pulse sequences from the path given in the plugin config file
+# Import all available pulse sequences from the path given in the plugin config file if any.
+# If no path is given import them from the plugin resources.
 
-sys.path.append(
-    "/".join(plugin_config("Extension", "sequences_folder").split("/")[:-1])
-)
-pulse_sequences_module = importlib.import_module(
-    plugin_config("Extension", "sequences_folder").split("/")[-1]
-)
+if plugin_config("Extension", "sequences_path") != "":
+    sys.path.append(
+        "/".join(plugin_config("Extension", "sequences_path").split("/")[:-1])
+    )
+    pulse_sequences_module = importlib.import_module(
+        plugin_config("Extension", "sequences_path").split("/")[-1]
+    )
+else:
+    from pymodaq_plugins_pulsedmeasurement.resources import (
+        default_pulse_sequences as pulse_sequences_module,
+    )
 
 # Import all available fit methods from the path given in the plugin config file if any.
-# If no path is given it imports them from the plugin resources.
+# If no path is given import them from the plugin resources.
 
-if plugin_config("Extension", "fit_methods_file") != "":
+if plugin_config("Extension", "fit_methods_path") != "":
     sys.path.append(
-        "/".join(plugin_config("Extension", "fit_methods_file").split("/")[:-1])
+        "/".join(plugin_config("Extension", "fit_methods_path").split("/")[:-1])
     )
     fit = importlib.import_module(
-        plugin_config("Extension", "fit_methods_file").split("/")[-1]
+        plugin_config("Extension", "fit_methods_path").split("/")[-1]
     )
 else:
     from pymodaq_plugins_pulsedmeasurement.resources import fit_methods as fit

@@ -15,12 +15,20 @@ from pymodaq_plugins_pulsedmeasurement.utils import Config as PluginConfig
 
 plugin_config = PluginConfig()
 
-sys.path.append(
-    "/".join(plugin_config("Extension", "sequences_folder").split("/")[:-1])
-)
-pulse_sequences_module = importlib.import_module(
-    plugin_config("Extension", "sequences_folder").split("/")[-1]
-)
+# Import all available pulse sequences from the path given in the plugin config file if any.
+# If no path is given import them from the plugin resources.
+
+if plugin_config("Extension", "sequences_path") != "":
+    sys.path.append(
+        "/".join(plugin_config("Extension", "sequences_path").split("/")[:-1])
+    )
+    pulse_sequences_module = importlib.import_module(
+        plugin_config("Extension", "sequences_path").split("/")[-1]
+    )
+else:
+    from pymodaq_plugins_pulsedmeasurement.resources import (
+        default_pulse_sequences as pulse_sequences_module,
+    )
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from decimal import Decimal
@@ -147,7 +155,9 @@ class Ui_MainWindow(object):
         self.verticalLayout_4 = QtWidgets.QVBoxLayout(self.tab_parameters)
         self.layout_add_sequence = QtWidgets.QHBoxLayout()
         self.comboBox_list_sequence = QtWidgets.QComboBox(self.tab_parameters)
-        for seq in pulse_sequences_module.__all__:
+        for seq in [
+            obj for obj in dir(pulse_sequences_module) if obj.startswith("Sequence_")
+        ]:
             seq = "_".join(map(str, seq.split("_")[1:]))
             self.comboBox_list_sequence.addItem(seq)
         self.layout_add_sequence.addWidget(self.comboBox_list_sequence)

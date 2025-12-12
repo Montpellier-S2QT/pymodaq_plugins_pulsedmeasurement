@@ -75,7 +75,8 @@ class Sequence_Template:
     @property
     def delays(self):
         """
-        Calculate the delays from the given start, stop and N_points.
+        Calculate the delays from the given start, stop and N_points in ns.
+        Return a 1D array.
         """
         start = round(self.gui_start.to("ns").magnitude)
         stop = round(self.gui_stop.to("ns").magnitude)
