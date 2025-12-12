@@ -67,7 +67,7 @@ PID Models
 
 Extensions
 ==========
-* **pulsed_measurement_extension**: core of this plugin. This extension allows for programming the pulse sequences, piloting the measurement and performing the data analysis.
+* **pulsed_measurement_extension**: core of this plugin. This extension allows for programming the pulse sequences, piloting the measurement and analysing the data.
 
 
 Installation instructions
@@ -78,3 +78,5 @@ Installation instructions
 * Drivers: 
    - spincore drivers https://www.spincore.com/support/spinapi/
    - fastcomtec software and drivers https://www.fastcomtec.com/ufm/mcs8a (the software must be opened to run the plugin)
+
+* Default pulse sequences and fit methods are used from the default_pulse_sequences.py and fit_methods.py files in the ressources folder. If you want to use your own you can specify a path to the new sequences/methods in the plugin config file. When writing your own sequences or fit methods note that it is crucial to follow the structure used in the default files. A template for defining new pulse sequences is therefore available in the resources folder.
