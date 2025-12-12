@@ -51,10 +51,12 @@ class Ui_Form(object):
     def add_remove_sinbox(self):
         if "multi" in self.fit_comboBox.currentText() and self.sb_state == False:
             self.N_spinBox = QtWidgets.QSpinBox(self.Form)
+            self.N_spinBox.setValue(1)
             self.horizontalLayout.addWidget(self.N_spinBox)
             self.sb_state = True
         elif not "multi" in self.fit_comboBox.currentText() and self.sb_state == True:
             self.N_spinBox.deleteLater()
+            del self.__dict__["N_spinBox"]
             self.sb_state = False
 
 
