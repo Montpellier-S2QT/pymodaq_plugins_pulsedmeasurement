@@ -50,9 +50,9 @@ def _constant_model(prefix=None):
             "cannot be used as a prefix and will be ignored for now."
             "Correct that!".format(prefix, type(prefix))
         )
-        model = Model(constant_function, independent_vars="x")
+        model = Model(constant_function)
     else:
-        model = Model(constant_function, independent_vars="x", prefix=prefix)
+        model = Model(constant_function, prefix=prefix)
 
     params = model.make_params()
 
@@ -62,6 +62,8 @@ def _constant_model(prefix=None):
 def _amplitude_model(prefix=None):
     """
     Return a constant scaling Model and its associated Parameter object.
+    This is the same model as _constant_model but making another one helps
+    reducing the prefix needed in the composite models.
 
     :param prefix (str): optional, if multiple models should be used in a
                        composite way and the parameters of each model should be
@@ -69,7 +71,7 @@ def _amplitude_model(prefix=None):
     """
 
     def amplitude_function(x, amplitude):
-        return amplitude * x
+        return amplitude
 
     if not isinstance(prefix, str) and prefix is not None:
         logger.warning(
@@ -77,9 +79,9 @@ def _amplitude_model(prefix=None):
             "cannot be used as a prefix and will be ignored for now."
             "Correct that!".format(prefix, type(prefix))
         )
-        model = Model(amplitude_function, independent_vars="x")
+        model = Model(amplitude_function)
     else:
-        model = Model(amplitude_function, independent_vars="x", prefix=prefix)
+        model = Model(amplitude_function, prefix=prefix)
 
     params = model.make_params()
 
@@ -104,9 +106,9 @@ def _bare_sine_model(prefix=None):
             "cannot be used as a prefix and will be ignored for now."
             "Correct that!".format(prefix, type(prefix))
         )
-        model = Model(bare_sine_function, independent_vars="x")
+        model = Model(bare_sine_function)
     else:
-        model = Model(bare_sine_function, independent_vars="x", prefix=prefix)
+        model = Model(bare_sine_function, prefix=prefix)
 
     params = model.make_params()
 
@@ -122,8 +124,8 @@ def _bare_stretched_decay_model(prefix=None):
                        distinguished from each other to prevent name collisions.
     """
 
-    def bare_stretched_decay_func(x, tau, beta):
-        return np.exp(-((x / tau) ** beta))
+    def bare_stretched_decay_func(x, lifetime, beta):
+        return np.exp(-((x / lifetime) ** beta))
 
     if not isinstance(prefix, str) and prefix is not None:
         logger.warning(
@@ -131,9 +133,9 @@ def _bare_stretched_decay_model(prefix=None):
             "cannot be used as a prefix and will be ignored for now."
             "Correct that!".format(prefix, type(prefix))
         )
-        model = Model(bare_stretched_decay_func, independent_vars="x")
+        model = Model(bare_stretched_decay_func)
     else:
-        model = Model(bare_stretched_decay_func, independent_vars="x", prefix=prefix)
+        model = Model(bare_stretched_decay_func, prefix=prefix)
 
     params = model.make_params()
 
@@ -178,7 +180,7 @@ def _sine_with_offset_model(prefix=None):
 
 def _multi_sine_model(N, prefix=None):
     """
-    Return a superpositon of N sine Models with an offset as well as its associated Parameter object.
+    Return a superpositon of N sine Models as well as its associated Parameter object.
     Composite model of _sine_model and _constant_model.
 
     :param prefix (str): optional, if multiple models should be used in a
@@ -190,10 +192,9 @@ def _multi_sine_model(N, prefix=None):
     else:
         add_text = prefix
 
-    offset, _ = _constant_model(prefix=prefix)
-    multi_sine = offset
+    multi_sine = _sine_model(prefix=f"s{0}_" + add_text)[0]
 
-    for i in range(N):
+    for i in range(1, N):
         sine, _ = _sine_model(prefix=f"s{i}_" + add_text)
         multi_sine += sine
 
@@ -259,7 +260,7 @@ def stretched_decay_model(prefix=None):
     return stretched_decay, params
 
 
-def guess_bare_sine(x_axis: NDArray, data: NDArray, params):
+def _bare_sine_guess(x_axis: NDArray, data: NDArray, params):
     fft_x, fft_y = compute_fft(x_axis, data, zeropad=1)
     fft_x_red = fft_x[np.where(fft_y > 0)]
     fft_y_red = fft_y[np.where(fft_y > 0)]
@@ -293,7 +294,7 @@ def guess_bare_sine(x_axis: NDArray, data: NDArray, params):
     return params
 
 
-def guess_sine(x_axis: NDArray, data: NDArray, params):
+def _sine_guess(x_axis: NDArray, data: NDArray, params):
     fft_x, fft_y = compute_fft(x_axis, data, zeropad=1)
     fft_x_red = fft_x[np.where(fft_y > 0)]
     fft_y_red = fft_y[np.where(fft_y > 0)]
@@ -321,6 +322,7 @@ def guess_sine(x_axis: NDArray, data: NDArray, params):
 
     amplitude = (np.max(data) - np.min(data)) / 2
 
+    params["amplitude"].set(value=amplitude, min=0.0)
     params["frequency"].set(
         value=frequency, min=0.0, max=1 / (x_axis[1] - x_axis[1]) * 3
     )
@@ -329,17 +331,17 @@ def guess_sine(x_axis: NDArray, data: NDArray, params):
     return params
 
 
-def guess_sine_with_offset(x_axis: NDArray, data: NDArray, params):
+def _sine_with_offset_guess(x_axis: NDArray, data: NDArray, params):
     offset = np.mean(data)
-    params = guess_sine(x_axis=x_axis, data=(data - offset), params=params)
+    params = _sine_guess(x_axis=x_axis, data=(data - offset), params=params)
     params["offset"].set(value=offset)
 
 
-def guess_multi_sine(x_axis: NDArray, data: NDArray, params, N: int):
+def _multi_sine_guess(x_axis: NDArray, data: NDArray, params, N: int):
     # Procedure: make successive single sine fits substracting each result before going to the next fit.
     data_sub = data
     for i in range(N):
-        result = sine_fit(x_axis=x_axis, data=data_sub, guesser=guess_sine)
+        result = _sine_fit(x_axis=x_axis, data=data_sub, guesser=_sine_guess)
         data_sub -= result.best_fit
 
         # Fill the parameter dict:
@@ -352,7 +354,7 @@ def guess_multi_sine(x_axis: NDArray, data: NDArray, params, N: int):
     return params
 
 
-def guess_stretched_decay(x_axis: NDArray, data: NDArray, params):
+def stretched_decay_guess(x_axis: NDArray, data: NDArray, params):
     # Roughly smooth the data
     filter_std_dev = 10
     data_smoothed = filters.gaussian_filter1d(data, filter_std_dev)
@@ -390,7 +392,7 @@ def guess_stretched_decay(x_axis: NDArray, data: NDArray, params):
     params["offset"].set(value=offset)
 
     min_lifetime = 2 * (x_axis[1] - x_axis[0])
-    params["tau"].set(value=lifetime, min=min_lifetime)
+    params["lifetime"].set(value=lifetime, min=min_lifetime)
 
     # Arbitrary starting point for the stretch factor !
     params["beta"].set(value=2, min=0)
@@ -398,12 +400,12 @@ def guess_stretched_decay(x_axis: NDArray, data: NDArray, params):
     return params
 
 
-def guess_sine_decay(x_axis: NDArray, data: NDArray, params):
+def sine_decay_guess(x_axis: NDArray, data: NDArray, params):
     offset = np.mean(data)  # The offset is estimated as the averge data
     data_level = data - offset
     ampl_val = (np.max(data) - np.min(data)) / 2
 
-    fft_x, fft_y = compute_fft(x_axis, data_level, zeropad_num=1)
+    fft_x, fft_y = compute_fft(x_axis, data_level, zeropad=1)
     stepsize = x_axis[1] - x_axis[0]  # for frequency axis
     fft_x_red = fft_x[np.where(fft_y > 0)]
     fft_y_red = fft_y[np.where(fft_y > 0)]
@@ -460,13 +462,13 @@ def guess_sine_decay(x_axis: NDArray, data: NDArray, params):
     return params
 
 
-def guess_multi_sine_decay(x_axis: NDArray, data: NDArray, params, N: int):
+def multi_sine_decay_guess(x_axis: NDArray, data: NDArray, params, N: int):
     # Procedure: make successive single sine_decay fits substracting each result before going to the next fit.
     data_sub = data
-    taus = np.empty(N)
+    lifetimes = np.empty(N)
     for i in range(N):
-        result = sine_decay_fit(x_axis=x_axis, data=data_sub, guesser=guess_sine)
-        taus[i] = result.params["tau"].value
+        result = sine_decay_fit(x_axis=x_axis, data=data_sub, guesser=_sine_guess)
+        lifetimes[i] = result.params["lifetime"].value
         data_sub -= result.best_fit
 
         # Fill the parameter dict:
@@ -475,77 +477,67 @@ def guess_multi_sine_decay(x_axis: NDArray, data: NDArray, params, N: int):
         params[f"s{i}_phase"].set(value=result.params["phase"].value)
 
     params["offset"].set(value=data.mean())
-    params["tau"].set(value=np.mean(taus), min=2 * (x_axis[1] - x_axis[0]))
+    params["lifetime"].set(value=np.mean(lifetimes), min=2 * (x_axis[1] - x_axis[0]))
 
     return params
 
 
-def sine_fit(x_axis: NDArray, data: NDArray, guesser=guess_sine):
+def _sine_fit(x_axis: NDArray, data: NDArray, guesser=_sine_guess, **kwargs):
     sine, params = _sine_model()
     params = guesser(x_axis, data, params)
     try:
-        result = sine.fit(data, x=x_axis, params=params)
+        result = sine.fit(data, x=x_axis, params=params, **kwargs)
     except:
-        result = sine.fit(data, x=x_axis, params=params)
-        logger.warning(
-            "The sine fit did not work.\n" "Error message: {0}\n".format(result.message)
-        )
+        result = -1
+        logger.warning("The sine fit did not work.")
     return result
 
 
-def multi_sine_fit(x_axis: NDArray, data: NDArray, N: int, guesser=guess_multi_sine):
-    multi_sine, params = _multi_sine_model(N=N)
-    params = guesser(x_axis, data, params, N=N)
+def _multi_sine_fit(
+    x_axis: NDArray, data: NDArray, guesser=_multi_sine_guess, **kwargs
+):
+    multi_sine, params = _multi_sine_model(N=kwargs["N_sine"])
+    params = guesser(x_axis, data, params, N=kwargs["N_sine"])
     try:
-        result = multi_sine.fit(data, x=x_axis, params=params)
+        result = multi_sine.fit(data, x=x_axis, params=params, **kwargs)
     except:
-        result = multi_sine.fit(data, x=x_axis, params=params)
-        logger.warning(
-            "The multi sine fit did not work.\n"
-            "Error message: {0}\n".format(result.message)
-        )
+        result = -1
+        logger.warning("The multi sine fit did not work.")
     return result
 
 
-def stretched_decay_fit(x_axis: NDArray, data: NDArray, guesser=guess_stretched_decay):
+def stretched_decay_fit(
+    x_axis: NDArray, data: NDArray, guesser=stretched_decay_guess, **kwargs
+):
     decay, params = stretched_decay_model()
     params = guesser(x_axis, data, params)
     try:
-        result = decay.fit(data, x=x_axis, params=params)
+        result = decay.fit(data, x=x_axis, params=params, **kwargs)
     except:
-        result = decay.fit(data, x=x_axis, params=params)
-        logger.warning(
-            "The stretched exponential decay fit did not work.\n"
-            "Error message: {0}\n".format(result.message)
-        )
+        result = -1
+        logger.warning("The stretched exponential decay fit did not work.")
     return result
 
 
-def sine_decay_fit(x_axis: NDArray, data: NDArray, guesser=guess_sine_decay):
-    sine_decay, params = stretched_decay_model()
+def sine_decay_fit(x_axis: NDArray, data: NDArray, guesser=sine_decay_guess, **kwargs):
+    sine_decay, params = sine_decay_model()
     params = guesser(x_axis, data, params)
     try:
-        result = sine_decay.fit(data, x=x_axis, params=params)
+        result = sine_decay.fit(data, x=x_axis, params=params, **kwargs)
     except:
-        result = sine_decay.fit(data, x=x_axis, params=params)
-        logger.warning(
-            "The sine decay fit did not work.\n"
-            "Error message: {0}\n".format(result.message)
-        )
+        result = -1
+        logger.warning("The sine decay fit did not work.")
     return result
 
 
 def multi_sine_decay_fit(
-    x_axis: NDArray, data: NDArray, N: int, guesser=guess_multi_sine_decay
+    x_axis: NDArray, data: NDArray, guesser=multi_sine_decay_guess, **kwargs
 ):
-    multi_sine_decay, params = multi_sine_decay_model(N=N)
-    params = guesser(x_axis, data, params, N=N)
+    multi_sine_decay, params = multi_sine_decay_model(N=kwargs["N_sine"])
+    params = guesser(x_axis, data, params, N=kwargs["N_sine"])
     try:
-        result = multi_sine_decay.fit(data, x=x_axis, params=params)
+        result = multi_sine_decay.fit(data, x=x_axis, params=params, **kwargs)
     except:
-        result = multi_sine_decay.fit(data, x=x_axis, params=params)
-        logger.warning(
-            "The multi sine decay fit did not work.\n"
-            "Error message: {0}\n".format(result.message)
-        )
+        result = -1
+        logger.warning("The multi sine decay fit did not work.")
     return result

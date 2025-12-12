@@ -186,8 +186,6 @@ class PulsedMeasurementExtension(CustomExt):
         # Make fit UI (for visualizing fit params)
         self.docks["Fit"] = gutils.Dock("Fit")
         self.dockarea.addDock(self.docks["Fit"])
-        # self.fit_widget = QtWidgets.QLabel()
-        # self.docks["Fit"].addWidget(self.fit_widget)
         self.fit_widget = QtWidgets.QWidget()
         self.fit_ui = Ui_Form()
         self.fit_ui.setupUi(self.fit_widget)
@@ -346,21 +344,29 @@ class PulsedMeasurementExtension(CustomExt):
         ###########################
         # Fit the coherence profile
         ###########################
-        try:
-            self.fit.fit_data(self.delays.to("s").magnitude, ratios)
-            fit = self.fit.calculate_fit(self.delays.to("s").magnitude)
-        except:
-            print("Fit failed")
-            fit = np.zeros_like(ratios)
-
-        def build_fit_text():
-            fit_text = ""
-            for key, value in self.fit.fit_params.items():
-                fit_text += f"{key} = {value}\n"
-            return fit_text
-
-        self.fit_widget.setText(build_fit_text())
-
+        if np.array_equal(ratios, np.zeros_like(ratios)):
+            best_fit = np.zeros_like(ratios)
+        else:
+            kwargs = {}
+            if "N_spinBox" in dir(self.fit_ui) and not self.fit_ui.N_spinBox is None:
+                kwargs["N_sine"] = self.fit_ui.N_spinBox.value()
+            kwargs["weight"] = errors
+            fit_result = getattr(
+                fit,
+                "_".join(self.fit_ui.fit_comboBox.currentText().split(" ")) + "_fit",
+            )(
+                x_axis=self.delays.to("s").magnitude,
+                data=ratios,
+                # nan_policy="propagate",
+                # **kwargs,
+            )
+            if fit_result == -1:
+                best_fit = np.zeros_like(ratios)
+            else:
+                self.fit_ui.textEdit.setText(
+                    fit_result.fit_report(show_correl=False).split("[[Variables]]")[-1]
+                )
+                best_fit = fit_result.best_fit
         ###########################
         # Build the DTE and send it
         ###########################
@@ -369,8 +375,8 @@ class PulsedMeasurementExtension(CustomExt):
             DataWithAxes(
                 name="Decay",
                 source="calculated",
-                data=[ratios, fit],
-                errors=[errors, np.zeros_like(fit)],
+                data=[ratios, best_fit],
+                errors=[errors, np.zeros_like(best_fit)],
                 labels=["Decay", "Fit"],
                 axes=[
                     Axis(
