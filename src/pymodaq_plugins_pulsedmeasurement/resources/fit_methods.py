@@ -13,6 +13,11 @@ from pymodaq_utils.logger import set_logger, get_module_name
 logger = set_logger(get_module_name(__file__))
 
 
+###################
+# Utility Functions
+###################
+
+
 def compute_fft(x_data, y_data, zeropad=0):
     """
     Compute the fast Fourier transform with zero padding and return the spectrum and its frequency axis.
@@ -30,6 +35,11 @@ def compute_fft(x_data, y_data, zeropad=0):
     stepsize = x_data[1] - x_data[0]
     fft_x = np.fft.fftfreq(len(zeropad_arr), d=stepsize)
     return fft_x[:middle], fft_y[:middle]
+
+
+###############
+# Custom Models
+###############
 
 
 def _constant_model(prefix=None):
@@ -160,24 +170,6 @@ def _sine_model(prefix=None):
     return sine, params
 
 
-def _sine_with_offset_model(prefix=None):
-    """
-    Return a sine Model with offset and amplitude as well as its associated Parameter object.
-    Composite model of _sine_model and _constant_model.
-
-    :param prefix (str): optional, if multiple models should be used in a
-                       composite way and the parameters of each model should be
-                       distinguished from each other to prevent name collisions.
-    """
-    sine, _ = _sine_model(prefix=prefix)
-    constant, _ = _constant_model(prefix=prefix)
-
-    sine_with_offset = sine + constant
-    params = sine_with_offset.make_params()
-
-    return sine_with_offset, params
-
-
 def _multi_sine_model(N, prefix=None):
     """
     Return a superpositon of N sine Models as well as its associated Parameter object.
@@ -260,38 +252,9 @@ def stretched_decay_model(prefix=None):
     return stretched_decay, params
 
 
-def _bare_sine_guess(x_axis: NDArray, data: NDArray, params):
-    fft_x, fft_y = compute_fft(x_axis, data, zeropad=1)
-    fft_x_red = fft_x[np.where(fft_y > 0)]
-    fft_y_red = fft_y[np.where(fft_y > 0)]
-    frequency = fft_x_red[np.argmax(np.log(fft_y_red))]
-    # find minimal distance to the next meas point in the corresponding time value>
-    min_x_diff = np.ediff1d(x_axis).min()
-    # How many points are used to sample the estimated frequency with min_x_diff:
-    iter_steps = int(1 / (frequency * min_x_diff))
-    if iter_steps < 1:
-        iter_steps = 1
-    sum_res = np.zeros(iter_steps)
-    # Procedure: Create sin waves with different phases and perform a summation.
-    #            The sum shows how well the sine was fitting to the actual data.
-    #            The best fitting sine should be a maximum of the summed time
-    #            trace.
-    for iter_s in range(iter_steps):
-        func_val = np.sin(
-            2 * np.pi * frequency * x_axis + iter_s / iter_steps * 2 * np.pi
-        )
-        sum_res[iter_s] = np.abs(data - func_val).sum()
-    # The minimum indicates where the sine function was fittng the worst,
-    # therefore subtract pi. This will also ensure that the estimated phase will
-    # be in the interval [-pi,pi].
-    phase = sum_res.argmax() / iter_steps * 2 * np.pi - np.pi
-
-    params["frequency"].set(
-        value=frequency, min=0.0, max=1 / (x_axis[1] - x_axis[1]) * 3
-    )
-    params["phase"].set(value=phase, min=-np.pi, max=np.pi)
-
-    return params
+####################################################
+# Methods to Guess the Initial Values for Parameters
+####################################################
 
 
 def _sine_guess(x_axis: NDArray, data: NDArray, params):
@@ -327,29 +290,6 @@ def _sine_guess(x_axis: NDArray, data: NDArray, params):
         value=frequency, min=0.0, max=1 / (x_axis[1] - x_axis[1]) * 3
     )
     params["phase"].set(value=phase, min=-np.pi, max=np.pi)
-
-    return params
-
-
-def _sine_with_offset_guess(x_axis: NDArray, data: NDArray, params):
-    offset = np.mean(data)
-    params = _sine_guess(x_axis=x_axis, data=(data - offset), params=params)
-    params["offset"].set(value=offset)
-
-
-def _multi_sine_guess(x_axis: NDArray, data: NDArray, params, N: int):
-    # Procedure: make successive single sine fits substracting each result before going to the next fit.
-    data_sub = data
-    for i in range(N):
-        result = _sine_fit(x_axis=x_axis, data=data_sub, guesser=_sine_guess)
-        data_sub -= result.best_fit
-
-        # Fill the parameter dict:
-        params[f"s{i}_amplitude"].set(value=result.params["amplitude"].value)
-        params[f"s{i}_frequency"].set(value=result.params["frequency"].value)
-        params[f"s{i}_phase"].set(value=result.params["phase"].value)
-
-    params["offset"].set(value=data.mean())
 
     return params
 
@@ -482,28 +422,9 @@ def multi_sine_decay_guess(x_axis: NDArray, data: NDArray, params, N: int):
     return params
 
 
-def _sine_fit(x_axis: NDArray, data: NDArray, guesser=_sine_guess, **kwargs):
-    sine, params = _sine_model()
-    params = guesser(x_axis, data, params)
-    try:
-        result = sine.fit(data, x=x_axis, params=params, **kwargs)
-    except:
-        result = -1
-        logger.warning("The sine fit did not work.")
-    return result
-
-
-def _multi_sine_fit(
-    x_axis: NDArray, data: NDArray, guesser=_multi_sine_guess, **kwargs
-):
-    multi_sine, params = _multi_sine_model(N=kwargs["N_sine"])
-    params = guesser(x_axis, data, params, N=kwargs["N_sine"])
-    try:
-        result = multi_sine.fit(data, x=x_axis, params=params, **kwargs)
-    except:
-        result = -1
-        logger.warning("The multi sine fit did not work.")
-    return result
+#############
+# Fit Methods
+#############
 
 
 def stretched_decay_fit(
