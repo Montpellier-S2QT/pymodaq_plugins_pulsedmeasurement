@@ -84,52 +84,6 @@ class Sequence_Template:
         delays = Q_(np.linspace(start, stop, self.gui_N_points), Unit("ns"))
         return delays
 
-    class Fit:
-        """
-        Subclass used for fitting the data obtained with this sequence.
-
-        Attributes:
-        -----------
-        fit_params (dict): a dictionnary containing the name and values of the fitting parameters
-        """
-
-        fit_params = {}
-
-        @staticmethod
-        def fit_func(x, param1, params2, etc):
-            # TODO: write here the mathematical function used to fit your sequence data
-            ...
-
-        def calculate_fit(self, xdata):
-            """
-            Wrapper of self.fit_func returning the fit calculated with self.fit_params over xdata.
-            """
-            # TODO: call the fit_func with the correct argument values from fit_params
-            return self.fit_func(
-                xdata,
-                self.fit_params["param1"],
-                self.fit_params["param2"],
-            )
-
-        def guess_params(self, xdata, ydata):
-            """
-            Function used to make the initial gues on the fitting parameters from the experimental data.
-            """
-            # TODO: write the function to get the initial guess. It should return a list of the initial guesses
-            # ordered in the same way as in fit_func arguments (so that curve_fit can use it correctly).
-            ...
-
-        def fit_data(self, xdata, ydata):
-            """
-            Fit the given data and store the fit parameters in self.fit_parms.
-            """
-            pguess = self.guess_params(xdata, ydata)
-            popt, _ = curve_fit(self.fit_func, xdata, ydata, pguess)
-            # TODO: store the fitting parameters in fit_params
-            self.fit_params["param1"] = popt[0]
-            self.fit_params["param2"] = popt[1]
-            ...
-
 
 if __name__ == "__main__":
     pass
