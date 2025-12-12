@@ -11,12 +11,12 @@ pymodaq_plugins_template
    :target: https://pymodaq.readthedocs.io/en/stable/?badge=latest
    :alt: Documentation Status
 
-.. image:: https://github.com/PyMoDAQ/pymodaq_plugins_template/workflows/Upload%20Python%20Package/badge.svg
-   :target: https://github.com/PyMoDAQ/pymodaq_plugins_template
+.. image:: https://github.com/Montpellier-S2QT/pymodaq_plugins_pulsesequences/workflows/Upload%20Python%20Package/badge.svg
+   :target: https://github.com/Montpellier-S2QT/pymodaq_plugins_pulsesequences
    :alt: Publication Status
 
-.. image:: https://github.com/PyMoDAQ/pymodaq_plugins_template/actions/workflows/Test.yml/badge.svg
-    :target: https://github.com/PyMoDAQ/pymodaq_plugins_template/actions/workflows/Test.yml
+.. image:: https://github.com/Montpellier-S2QT/pymodaq_plugins_pulsesequences/actions/workflows/Test.yml/badge.svg
+    :target: https://github.com/Montpellier-S2QT/pymodaq_plugins_pulsesequences/actions/workflows/Test.yml
 
 
 This plugin controls a spincore PulseBlaster and a fastcomtec fast counter to perform pulsed measurements.
@@ -54,8 +54,7 @@ Viewer0D
 Viewer1D
 ++++++++
 
-* **T1exp**: custom 1D detector for T1 sequence
-* **Rabi**: custom 1D detector for Rabi sequence
+* **PulsedCounter**: custom 1D detector that launches the programmed sequence and starts the measurement. It is meant to be used within the extension.
 
 
 Viewer2D
@@ -68,6 +67,7 @@ PID Models
 
 Extensions
 ==========
+* **pulsed_measurement_extension**: core of this plugin. This extension allows for programming the pulse sequences, piloting the measurement and performing the data analysis.
 
 
 Installation instructions

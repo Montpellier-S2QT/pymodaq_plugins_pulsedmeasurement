@@ -146,14 +146,17 @@ class PulseBlaster:
         #             f"Error: Invalid board number. Please enter a valid board number (0-{board_count - 1}): "
         #         )
 
-        # Initialize PulseBlaster, return error if occurs
-        if spinapi.pb_init() != 0:
-            raise PulseBlasterError(
-                f"Failed to initialize PulseBlaster board: {spinapi.pb_get_error()}"
-            )
-
-        # Set member variables
-        self.channels, self.clock, self.memory = self._match_firmware()
+        try:
+            # Set member variables
+            self.channels, self.clock, self.memory = self._match_firmware()
+        except:
+            # Initialize PulseBlaster, return error if occurs
+            if spinapi.pb_init() != 0:
+                raise PulseBlasterError(
+                    f"Failed to initialize PulseBlaster board: {spinapi.pb_get_error()}"
+                )
+            # Set member variables
+            self.channels, self.clock, self.memory = self._match_firmware()
         self.board_number = board_number
         self.queues = [[] for _ in range(self.channels)]
         self.instructions = []  # Instruction queue
@@ -181,7 +184,7 @@ class PulseBlaster:
             raise PulseBlasterError(
                 f"Failed to start PulseBlaster program: {spinapi.pb_get_error()}"
             )
-        print("PulseBlaster program has been started.")
+        # print("PulseBlaster program has been started.")
         self.running = True
 
     # Reset the PulseBlaster board
@@ -191,7 +194,7 @@ class PulseBlaster:
             raise PulseBlasterError(
                 f"Failed to reset PulseBlaster program: {spinapi.pb_get_error()}"
             )
-        print("PulseBlaster board has been reset.")
+        # print("PulseBlaster board has been reset.")
         self.running = True
 
     # Stop the PuleBlaster board
@@ -201,7 +204,7 @@ class PulseBlaster:
             raise PulseBlasterError(
                 f"Failed to stop PulseBlaster program: {spinapi.pb_get_error()}"
             )
-        print("PulseBlaster board has been stopped.")
+        # print("PulseBlaster board has been stopped.")
         self.running = False
 
     # Closes the communication with PulseBlaster
@@ -340,6 +343,7 @@ class PulseBlaster:
         if num_channels == 1:
             axes = [axes]  # Ensure axes is always iterable
 
+        data = []
         for ax, channel_name in zip(axes, channels):
             time = []
             voltage = []
@@ -364,13 +368,15 @@ class PulseBlaster:
             ax.set_yticklabels(["0", "1"])
             ax.set_ylabel(channel_name)
 
+            data.append((channel_name, time, voltage))
+
         # Plot everything
         axes[-1].set_xlabel("Time (ns)")
         plt.suptitle("SpinCore Technologies Inc.")
         axes[-1].set_xlim(-0.10, max_time)
         plt.tight_layout(rect=[0.03, 0, 1, 0.95])
         # plt.show()
-        return fig, axes
+        return fig, axes, data
 
     # Compile channel patterns into instructions
     def compile_channels(self):
@@ -503,11 +509,12 @@ class PulseBlaster:
             case "33-3":
                 return (24, 500.0, 4096)
             case _:
-                print("Unrecognized firmware")
-                channels = input("Enter the number of channels on the board: ")
-                clock = input("Enter the core clock frequency of the board (MHz): ")
-                memory = input("Enter the size of the memory of the board (kB): ")
-                return (channels, clock, memory)
+                raise Exception("Unrecognized firmware")
+                # print("Unrecognized firmware")
+                # channels = input("Enter the number of channels on the board: ")
+                # clock = input("Enter the core clock frequency of the board (MHz): ")
+                # memory = input("Enter the size of the memory of the board (kB): ")
+                # return (channels, clock, memory)
 
     def exit(self):
         if self.running:
