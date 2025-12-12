@@ -36,6 +36,7 @@ from pymodaq_plugins_pulsedmeasurement.hardware.pulsed_controller import (
     PulsedController,
 )
 from pymodaq_plugins_pulsedmeasurement.hardware._spinapi import SpinAPI
+
 from pymodaq_plugins_pulsedmeasurement.resources import fit_methods as fit
 
 logger = set_logger(get_module_name(__file__))
@@ -46,7 +47,7 @@ main_config = config_mod_pymodaq.Config()
 plugin_config = PluginConfig()
 config_pymodaq = PyMoConfig()
 
-# Importing all available pulse sequences from the path given in the plugin config file
+# Import all available pulse sequences from the path given in the plugin config file
 
 sys.path.append(
     "/".join(plugin_config("Extension", "sequences_folder").split("/")[:-1])
@@ -55,6 +56,18 @@ pulse_sequences_module = importlib.import_module(
     plugin_config("Extension", "sequences_folder").split("/")[-1]
 )
 
+# Import all available fit methods from the path given in the plugin config file if any.
+# If no path is given it imports them from the plugin resources.
+
+if plugin_config("Extension", "fit_methods_file") != "":
+    sys.path.append(
+        "/".join(plugin_config("Extension", "fit_methods_file").split("/")[:-1])
+    )
+    fit = importlib.import_module(
+        plugin_config("Extension", "fit_methods_file").split("/")[-1]
+    )
+else:
+    from pymodaq_plugins_pulsedmeasurement.resources import fit_methods as fit
 
 PLOT_COLORS = [dict(color=color) for color in utils.plot_colors]
 
