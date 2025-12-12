@@ -258,7 +258,7 @@ class PulsedMeasurementExtension(CustomExt):
         """
         This function regulates the rate of the data analysis to ~1Hz.
         """
-        if time.perf_counter() - self.t_det_done < 1:
+        if time.perf_counter() - self.t_det_done < 3:
             pass
         else:
             self.t_det_done = time.perf_counter()
@@ -486,7 +486,6 @@ class PulsedMeasurementExtension(CustomExt):
             pulse_sequences_module, f"Sequence_{self.ui.selected_sequence}"
         )(**params_dict)
         self.delays = sequence.delays
-        self.fit = sequence.Fit()
         self.detector.settings.child("detector_settings", "name").setValue(
             self.ui.selected_sequence
         )
