@@ -349,16 +349,15 @@ class PulsedMeasurementExtension(CustomExt):
         else:
             kwargs = {}
             if "N_spinBox" in dir(self.fit_ui) and not self.fit_ui.N_spinBox is None:
-                kwargs["N_sine"] = self.fit_ui.N_spinBox.value()
-            kwargs["weight"] = errors
+                kwargs["N"] = self.fit_ui.N_spinBox.value()
+            kwargs["weights"] = errors
             fit_result = getattr(
                 fit,
                 "_".join(self.fit_ui.fit_comboBox.currentText().split(" ")) + "_fit",
             )(
                 x_axis=self.delays.to("s").magnitude,
                 data=ratios,
-                # nan_policy="propagate",
-                # **kwargs,
+                **kwargs,
             )
             if fit_result == -1:
                 best_fit = np.zeros_like(ratios)

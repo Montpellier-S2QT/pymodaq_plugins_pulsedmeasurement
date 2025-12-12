@@ -408,6 +408,9 @@ def multi_sine_decay_guess(x_axis: NDArray, data: NDArray, params, N: int):
     lifetimes = np.empty(N)
     for i in range(N):
         result = sine_decay_fit(x_axis=x_axis, data=data_sub, guesser=_sine_guess)
+        if result == -1:
+            logger.warning("The multi sine decay guess did not work.")
+            return params
         lifetimes[i] = result.params["lifetime"].value
         data_sub -= result.best_fit
 
@@ -452,10 +455,10 @@ def sine_decay_fit(x_axis: NDArray, data: NDArray, guesser=sine_decay_guess, **k
 
 
 def multi_sine_decay_fit(
-    x_axis: NDArray, data: NDArray, guesser=multi_sine_decay_guess, **kwargs
+    x_axis: NDArray, data: NDArray, guesser=multi_sine_decay_guess, N: int = 1, **kwargs
 ):
-    multi_sine_decay, params = multi_sine_decay_model(N=kwargs["N_sine"])
-    params = guesser(x_axis, data, params, N=kwargs["N_sine"])
+    multi_sine_decay, params = multi_sine_decay_model(N=N)
+    params = guesser(x_axis, data, params, N=N)
     try:
         result = multi_sine_decay.fit(data, x=x_axis, params=params, **kwargs)
     except:
