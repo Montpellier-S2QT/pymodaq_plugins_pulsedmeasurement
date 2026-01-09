@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy.optimize import curve_fit
-from pulseblaster import pulseblaster, _spinapi
+from pymodaq_plugins_pulsedmeasurement.hardware import pulseblaster, _spinapi
 from pymodaq import Q_, Unit
-
 
 class Sequence_Template:
     """

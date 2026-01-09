@@ -1,5 +1,5 @@
 title = 'this is the configuration file of the plugin pulsedmeasurement'
 
 [Extension]
-sequences_path = "C:/Users/Aurore/pymodaq_pulse_sequences"
+sequences_path = ""
 fit_methods_path = ""
