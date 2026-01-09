@@ -4,7 +4,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from pymodaq import Q_, Unit
 
-from pulseblaster import _spinapi
+from pymodaq_plugins_pulsedmeasurement.hardware import _spinapi
 
 
 class Sequence_Rabi:

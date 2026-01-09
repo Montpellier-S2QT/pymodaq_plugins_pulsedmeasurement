@@ -13,6 +13,7 @@ name = "pymodaq_plugins_pulsedmeasurement"
 description = 'Plugin with custom 1D viewer for performing pulse measurements'
 dependencies = [
     "pymodaq>=5.0.0",
+    "scientific_spinbox",
 ]
 
 authors = [
